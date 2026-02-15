@@ -27,15 +27,23 @@ DEBUG_HEX = True
 re_de = DigitalOutputDevice(RE_DE_PIN)
 re_de.off()  # приём по умолчанию
 
-# UART: короткий timeout, чтобы не блокироваться и не зависеть от select()
-ser = serial.Serial(
-    port=PORT,
-    baudrate=BAUDRATE,
-    bytesize=serial.EIGHTBITS,
-    parity=serial.PARITY_NONE,
-    stopbits=serial.STOPBITS_ONE,
-    timeout=READ_TIMEOUT,
-)
+# UART: короткий timeout; exclusive=True — один доступ к порту (pyserial 3.3+, Linux)
+def open_serial():
+    kwargs = dict(
+        port=PORT,
+        baudrate=BAUDRATE,
+        bytesize=serial.EIGHTBITS,
+        parity=serial.PARITY_NONE,
+        stopbits=serial.STOPBITS_ONE,
+        timeout=READ_TIMEOUT,
+    )
+    try:
+        return serial.Serial(**kwargs, exclusive=True)
+    except TypeError:
+        return serial.Serial(**kwargs)
+
+
+ser = open_serial()
 
 
 def send_rs485(data: bytes) -> None:
@@ -56,14 +64,23 @@ def main() -> int:
         print("DEBUG: вывод сырых байт (hex) включён.")
     print("Выход: Ctrl+C")
 
+    # Ошибка "readiness to read but returned no data" на Linux — не выходим, продолжаем цикл
+    read_error_count = 0
     try:
         while True:
             try:
                 data = ser.read(4096)
             except serial.SerialException as e:
-                print(f"Ошибка чтения: {e}", file=sys.stderr)
-                return 1
+                err_text = str(e).lower()
+                if "no data" in err_text or "multiple access" in err_text or "disconnected" in err_text:
+                    read_error_count += 1
+                    if read_error_count <= 5 or read_error_count % 100 == 0:
+                        print(f"Предупреждение (игнорируем): {e}", file=sys.stderr)
+                    time.sleep(0.02)
+                    continue
+                raise
 
+            read_error_count = 0  # сброс после успешного чтения
             if not data:
                 continue
 
