@@ -66,6 +66,12 @@ def main() -> int:
             if not data:
                 continue
 
+            try:
+                text = data.decode("utf-8", errors="replace")
+            except Exception:
+                text = str(bytes(data))
+            print(f"Получено по RS485: {text!r}")
+
             buffer.extend(data)
             if len(buffer) > 2048:
                 buffer = buffer[-1024:]
