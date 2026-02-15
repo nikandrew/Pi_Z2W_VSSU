@@ -121,6 +121,12 @@ def main() -> int:
                 finally:
                     rs485_receive()
                 print(f"Получено {EXPECTED_MSG!r} → отправлено {REPLY_MSG!r}")
+            else:
+                try:
+                    text = data.decode("utf-8", errors="replace")
+                except Exception:
+                    text = str(bytes(data))
+                print(f"Получено не ST. Содержимое: {text!r}")
 
     except KeyboardInterrupt:
         print("\nОстановка по Ctrl+C.")
