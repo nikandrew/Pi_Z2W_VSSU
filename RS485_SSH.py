@@ -2,10 +2,10 @@
 """
 Ожидание команды "start" по RS485 (последовательный порт).
 При получении "start" — ответ "Test" в тот же RS485.
-RE и DE на GPIO17. Ожидание через select().
+RE и DE на GPIO17.
+Чтение по таймауту (select на Linux часто не срабатывает на serial).
 """
 
-import select
 import sys
 import time
 
@@ -18,20 +18,23 @@ BAUDRATE = 2_000_000
 
 EXPECTED_CMD = b"start"
 REPLY_MSG = b"Test"
-SELECT_TIMEOUT = 1.0
+READ_TIMEOUT = 0.05  # с — опрос порта; при данных они сразу читаются
+
+# Вывод сырых байт в hex для отладки (осциллограф vs программа)
+DEBUG_HEX = True
 
 # GPIO: RE+DE
 re_de = DigitalOutputDevice(RE_DE_PIN)
 re_de.off()  # приём по умолчанию
 
-# UART (timeout=0 для работы с select)
+# UART: короткий timeout, чтобы не блокироваться и не зависеть от select()
 ser = serial.Serial(
     port=PORT,
     baudrate=BAUDRATE,
     bytesize=serial.EIGHTBITS,
     parity=serial.PARITY_NONE,
     stopbits=serial.STOPBITS_ONE,
-    timeout=0,
+    timeout=READ_TIMEOUT,
 )
 
 
@@ -45,18 +48,16 @@ def send_rs485(data: bytes) -> None:
 
 
 def main() -> int:
-    fd = ser.fileno()
     buffer = bytearray()
 
     print(f"Порт: {PORT}, {BAUDRATE} бод. Ожидание команды {EXPECTED_CMD!r} по RS485.")
+    print("Если данных нет — проверьте: 1) скорость передатчика = 2 Мбит/с  2) порт (ttyAMA0/serial0).")
+    if DEBUG_HEX:
+        print("DEBUG: вывод сырых байт (hex) включён.")
     print("Выход: Ctrl+C")
 
     try:
         while True:
-            readable, _, _ = select.select([fd], [], [], SELECT_TIMEOUT)
-            if not readable:
-                continue
-
             try:
                 data = ser.read(4096)
             except serial.SerialException as e:
@@ -71,6 +72,8 @@ def main() -> int:
             except Exception:
                 text = str(bytes(data))
             print(f"Получено по RS485: {text!r}")
+            if DEBUG_HEX:
+                print(f"  hex: {data.hex()!r}")
 
             buffer.extend(data)
             if len(buffer) > 2048:
