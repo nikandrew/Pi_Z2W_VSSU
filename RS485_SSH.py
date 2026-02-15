@@ -55,8 +55,28 @@ def send_rs485(data: bytes) -> None:
     re_de.off()
 
 
+def read_all_available() -> bytes:
+    """Читает всё, что уже лежит в буфере драйвера (целиком кадр, без обрыва по середине)."""
+    chunks = []
+    old_timeout = ser.timeout
+    try:
+        ser.timeout = 0
+        while True:
+            n = ser.in_waiting
+            if n == 0:
+                break
+            chunk = ser.read(min(n, 4096))
+            if not chunk:
+                break
+            chunks.append(chunk)
+    finally:
+        ser.timeout = old_timeout
+    return b"".join(chunks) if chunks else b""
+
+
 def main() -> int:
     buffer = bytearray()
+    ser.reset_input_buffer()  # выбросить старый мусор, чтобы не было "символа из середины"
 
     print(f"Порт: {PORT}, {BAUDRATE} бод. Ожидание команды {EXPECTED_CMD!r} по RS485.")
     print("Если данных нет — проверьте: 1) скорость передатчика = 2 Мбит/с  2) порт (ttyAMA0/serial0).")
@@ -64,12 +84,14 @@ def main() -> int:
         print("DEBUG: вывод сырых байт (hex) включён.")
     print("Выход: Ctrl+C")
 
-    # Ошибка "readiness to read but returned no data" на Linux — не выходим, продолжаем цикл
     read_error_count = 0
     try:
         while True:
             try:
                 data = ser.read(4096)
+                if data:
+                    time.sleep(0.002)  # дать остальным байтам кадра прийти в буфер (2 Мбит/с)
+                    data = data + read_all_available()
             except serial.SerialException as e:
                 err_text = str(e).lower()
                 if "no data" in err_text or "multiple access" in err_text or "disconnected" in err_text:
@@ -80,7 +102,7 @@ def main() -> int:
                     continue
                 raise
 
-            read_error_count = 0  # сброс после успешного чтения
+            read_error_count = 0
             if not data:
                 continue
 
