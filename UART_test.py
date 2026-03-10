@@ -20,6 +20,9 @@ ser = serial.Serial(
 print("Waiting for data...")
 
 while True:
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(RS485_DIR_PIN, GPIO.OUT, initial=GPIO.LOW)  # сразу прием
+    
     set_receive_mode()
     
     if ser.in_waiting > 0:
