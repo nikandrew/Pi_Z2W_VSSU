@@ -1,5 +1,8 @@
 import serial
 
+RS485_DIR_PIN = 17          # GPIO17, управляет DE+RE
+GPIO.output(RS485_DIR_PIN, GPIO.LOW)
+
 ser = serial.Serial(
     port='/dev/serial0',   # UART порт
     baudrate=115200,
