@@ -1,16 +1,15 @@
 import serial
 
 ser = serial.Serial(
-    port="/dev/serial0",
-    baudrate=9600,
-    bytesize=serial.EIGHTBITS,
-    parity=serial.PARITY_NONE,
-    stopbits=serial.STOPBITS_ONE,
-    timeout=None
+    port='/dev/serial0',   # UART порт
+    baudrate=115200,
+    timeout=1
 )
 
-print("Жду байт на /dev/serial0 (9600)...")
+print("Waiting for data...")
 
 while True:
-    data = ser.read(1)
-    print("Получено:", data, data.hex())
+    if ser.in_waiting > 0:
+        data = ser.read(1)           # читаем 1 байт
+        char = data.decode('utf-8', errors='ignore')
+        print(f"Received: {char}")
