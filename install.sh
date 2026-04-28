@@ -17,10 +17,14 @@ sudo apt upgrade -y
 echo ""
 echo "[2/5] Установка зависимостей..."
 sudo apt install -y \
-    libcamera-apps \
+    python3-libcamera \
+    python3-picamera2 \
     python3-pip \
+    python3-venv \
     ffmpeg \
-    git
+    git \
+    libcamera0 \
+    libcamera-tools
 
 # 3. Активация камеры
 echo ""
@@ -36,8 +40,8 @@ fi
 # 4. Установка Python пакетов
 echo ""
 echo "[4/5] Установка Python зависимостей..."
-pip install --upgrade pip
-pip install \
+pip install --upgrade pip --break-system-packages
+pip install --break-system-packages \
     pyserial \
     gpiozero
 

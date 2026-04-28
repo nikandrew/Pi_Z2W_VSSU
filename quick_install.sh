@@ -26,18 +26,21 @@ sudo apt upgrade -y
 
 echo \"\"
 echo -e \"${BLUE}[ЭТАП 2/5]${NC} Установка зависимостей...\"
-sudo apt install -y \\
-    libcamera-apps \\
-    python3-pip \\
-    ffmpeg \\
-    git \\
-    build-essential
+sudo apt install -y \
+    python3-libcamera \
+    python3-picamera2 \
+    python3-pip \
+    python3-venv \
+    ffmpeg \
+    git \
+    libcamera0 \
+    libcamera-tools
 
 echo \"\"
 echo -e \"${BLUE}[ЭТАП 3/5]${NC} Установка Python пакетов...\"
-pip install --upgrade pip
-pip install --user \\
-    pyserial \\
+pip install --upgrade pip --break-system-packages
+pip install --break-system-packages \
+    pyserial \
     gpiozero
 
 echo \"\"
