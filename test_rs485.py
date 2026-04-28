@@ -22,7 +22,7 @@ except ImportError:
 
 
 UART_PORT = "/dev/serial0"
-UART_BAUDRATE = 2_000_000
+UART_BAUDRATE = 115200
 GPIO_PIN = 17
 
 # Команды

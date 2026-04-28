@@ -4,16 +4,18 @@
 Отправляет команду 'start' и ждет ответа по RS-485.
 
 Использование (на другом компьютере):
-  python3 host_simulator.py --port /dev/ttyUSB0 --baudrate 2000000
+  python3 host_simulator.py --port /dev/ttyUSB0 --baudrate 115200
 """
 
 import argparse
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 
 try:
     import serial
+    from serial.tools import list_ports
 except ImportError:
     print("Установите: sudo apt install -y python3-serial", file=sys.stderr)
     sys.exit(1)
@@ -22,12 +24,28 @@ except ImportError:
 EXPECTED_REPLY = b"recording_complete"
 
 
+def print_ports() -> None:
+    """Печатает доступные последовательные порты."""
+    ports = list(list_ports.comports())
+    if not ports:
+        print("COM/serial порты не найдены")
+        return
+
+    print("Доступные COM/serial порты:")
+    for port in ports:
+        print(f"  {port.device}: {port.description} [{port.hwid}]")
+
+
 def send_command(
     port: str,
     baudrate: int,
     command: bytes,
     timeout: float = 90,
     expected_reply: bytes = EXPECTED_REPLY,
+    open_delay: float = 0.2,
+    post_write_delay: float = 0.05,
+    rts: Optional[bool] = None,
+    dtr: Optional[bool] = None,
 ) -> bool:
     """
     Отправляет команду и ждет ответа.
@@ -45,11 +63,31 @@ def send_command(
             stopbits=serial.STOPBITS_ONE,
             timeout=0.1
         )
+
+        print(f"Порт открыт: {ser.name}")
+        print(f"Параметры: {ser.baudrate} 8N1, timeout={ser.timeout}")
+
+        if rts is not None:
+            ser.rts = rts
+            print(f"RTS установлен в {ser.rts}")
+        if dtr is not None:
+            ser.dtr = dtr
+            print(f"DTR установлен в {ser.dtr}")
+
+        if open_delay > 0:
+            time.sleep(open_delay)
+
+        ser.reset_input_buffer()
+        ser.reset_output_buffer()
         
         # Отправка команды
         print(f"\n[SEND] Отправка: {command}")
-        ser.write(command)
+        bytes_written = ser.write(command)
         ser.flush()
+        if post_write_delay > 0:
+            time.sleep(post_write_delay)
+        print(f"       Записано байт в COM-порт: {bytes_written}")
+        print(f"       Hex: {command.hex()}")
         print("       Команда отправлена. Если main.py сработал, ответ придет после записи видео.")
         
         # Ожидание ответа
@@ -103,7 +141,7 @@ def main():
   python3 host_simulator.py --port COM3
   
   # С конкретной скоростью
-  python3 host_simulator.py --port /dev/ttyUSB0 --baudrate 2000000
+  python3 host_simulator.py --port /dev/ttyUSB0 --baudrate 115200
 """
     )
     
@@ -115,8 +153,8 @@ def main():
     parser.add_argument(
         "--baudrate",
         type=int,
-        default=2_000_000,
-        help="Скорость (по умолчанию 2000000)"
+        default=115200,
+        help="Скорость (по умолчанию 115200)"
     )
     parser.add_argument(
         "--command",
@@ -139,10 +177,43 @@ def main():
         action="store_true",
         help="Повторять команду циклически (Ctrl+C для выхода)"
     )
+    parser.add_argument(
+        "--list-ports",
+        action="store_true",
+        help="Показать доступные COM/serial порты и выйти"
+    )
+    parser.add_argument(
+        "--open-delay",
+        type=float,
+        default=0.2,
+        help="Пауза после открытия порта перед отправкой, сек (по умолчанию 0.2)"
+    )
+    parser.add_argument(
+        "--post-write-delay",
+        type=float,
+        default=0.05,
+        help="Пауза после write/flush перед чтением, сек (по умолчанию 0.05)"
+    )
+    parser.add_argument(
+        "--rts",
+        choices=["on", "off"],
+        help="Принудительно установить RTS; полезно для некоторых USB-RS485 адаптеров"
+    )
+    parser.add_argument(
+        "--dtr",
+        choices=["on", "off"],
+        help="Принудительно установить DTR; полезно для некоторых USB-RS485 адаптеров"
+    )
     
     args = parser.parse_args()
+
+    if args.list_ports:
+        print_ports()
+        return 0
     
     command = args.command.encode() if isinstance(args.command, str) else args.command
+    rts = None if args.rts is None else args.rts == "on"
+    dtr = None if args.dtr is None else args.dtr == "on"
     
     print(f"\n{'=' * 50}")
     print("СИМУЛЯТОР ХОСТА RS-485")
@@ -153,6 +224,8 @@ def main():
     expected_reply = args.expect.encode() if args.expect else b""
     print(f"Таймаут: {args.timeout} сек")
     print(f"Ожидаемый ответ: {expected_reply!r}")
+    print(f"RTS: {'не менять' if rts is None else rts}")
+    print(f"DTR: {'не менять' if dtr is None else dtr}")
     
     if args.loop:
         print("\nРежим циклической отправки (Ctrl+C для выхода)")
@@ -160,14 +233,34 @@ def main():
         try:
             while True:
                 print(f"\n\n[ИТЕРАЦИЯ {iteration}]")
-                success = send_command(args.port, args.baudrate, command, args.timeout, expected_reply)
+                success = send_command(
+                    args.port,
+                    args.baudrate,
+                    command,
+                    args.timeout,
+                    expected_reply,
+                    args.open_delay,
+                    args.post_write_delay,
+                    rts,
+                    dtr,
+                )
                 iteration += 1
                 time.sleep(2)  # Пауза между итерациями
         except KeyboardInterrupt:
             print("\n\nОстановлено пользователем")
             return 0
     else:
-        success = send_command(args.port, args.baudrate, command, args.timeout, expected_reply)
+        success = send_command(
+            args.port,
+            args.baudrate,
+            command,
+            args.timeout,
+            expected_reply,
+            args.open_delay,
+            args.post_write_delay,
+            rts,
+            dtr,
+        )
         return 0 if success else 1
 
 

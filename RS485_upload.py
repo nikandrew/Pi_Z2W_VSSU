@@ -4,7 +4,7 @@ import RPi.GPIO as GPIO
 
 # Настройки
 UART_PORT = "/dev/serial0"  # чаще всего так на Pi
-BAUDRATE = 2_000_000        # 2 Мбит/с
+BAUDRATE = 115200        # 115200 бод
 RS485_DIR_PIN = 17          # GPIO17, управляет DE+RE
 
 # Время на переключение направления (подберите при необходимости)
