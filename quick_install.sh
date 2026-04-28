@@ -31,6 +31,7 @@ sudo apt install -y \
     python3-picamera2 \
     python3-pip \
     python3-venv \
+    rpicam-apps \
     ffmpeg \
     git \
     libcamera0 \

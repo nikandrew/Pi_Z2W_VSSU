@@ -130,7 +130,7 @@ def main() -> int:
         DirectoryCheckItem("logs", create=True),
         
         # Команды
-        CommandCheckItem("libcamera-vid --version", "libcamera (запись видео)", critical=True),
+        CommandCheckItem("rpicam-vid --version", "rpicam (запись видео)", critical=True),
         CommandCheckItem("ffmpeg -version", "ffmpeg (разбиение видео)", critical=False),
         CommandCheckItem("python3 --version", "Python 3", critical=True),
         

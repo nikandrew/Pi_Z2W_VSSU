@@ -21,6 +21,7 @@ sudo apt install -y \
     python3-picamera2 \
     python3-pip \
     python3-venv \
+    rpicam-apps \
     ffmpeg \
     git \
     libcamera0 \
@@ -67,6 +68,6 @@ echo "2. Перезагрузитесь: sudo reboot"
 echo "3. Запустите систему: python3 main.py"
 echo ""
 echo "Проверка:"
-echo "  libcamera-vid --version"
+echo "  rpicam-vid --version"
 echo "  python3 -c 'import serial; print(\"OK\")'"
 echo "  gpio readall | grep 17  (должна быть строка с GPIO17)"

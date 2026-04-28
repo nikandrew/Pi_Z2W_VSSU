@@ -27,7 +27,7 @@ SUCCESS_REPLY = b"recording_complete" # Ответ об успехе
 ```bash
 # На самой Pi:
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y libcamera-apps python3-pip ffmpeg
+sudo apt install -y rpicam-apps python3-pip ffmpeg
 pip install pyserial gpiozero
 
 # Включить камеру:
@@ -83,9 +83,9 @@ sudo python3 test_rs485.py
 
 ## Возможные проблемы
 
-### 1. `libcamera-vid` не найден
+### 1. `rpicam-vid` не найден
 ```bash
-sudo apt install -y libcamera-apps
+sudo apt install -y rpicam-apps
 ```
 
 ### 2. Ошибка при открытии UART порта
@@ -105,7 +105,7 @@ sudo python3 main.py
 ### 4. Видео не записывается
 ```bash
 # Проверьте камеру:
-libcamera-vid -t 1000 -o test.h264
+rpicam-vid -t 1000 -o test.h264
 # Должен создаться файл test.h264
 ```
 

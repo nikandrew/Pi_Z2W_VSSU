@@ -123,7 +123,7 @@ A: Используйте `host_simulator.py` с USB RS-485 адаптером
 ## Версии ПО
 
 - Python: 3.8+
-- libcamera-apps: 1.0+
+- rpicam-apps: 1.0+
 - pyserial: 3.5+
 - gpiozero: 2.0+
 - ffmpeg: 4.2+ (опционально, для разбиения видео)

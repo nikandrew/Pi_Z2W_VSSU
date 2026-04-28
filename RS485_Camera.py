@@ -7,12 +7,12 @@ Raspberry Pi Zero 2W:
 - По команде "start" записывает 1‑минутное видео с камеры в H.264.
 
 Требования:
-- Raspberry Pi OS (64‑bit) с поддержкой libcamera.
+- Raspberry Pi OS (64‑bit) с поддержкой rpicam.
 - Включена камера (raspi-config → Interface Options → Camera).
 - Настроенный UART (обычно /dev/serial0 или /dev/ttyS0).
-- Установлен пакет libcamera:
+- Установлен пакет rpicam:
     sudo apt update
-    sudo apt install -y libcamera-apps
+    sudo apt install -y rpicam-apps
 - Установлен pyserial:
     pip install pyserial
 """
@@ -62,8 +62,8 @@ OUTPUT_DIR = Path("./videos")
 # Имя файла: video_YYYYMMDD_HHMMSS.h264
 FILENAME_TEMPLATE = "video_{timestamp}.h264"
 
-# Путь к утилите libcamera-vid
-LIBCAMERA_VID_CMD = "libcamera-vid"
+# Путь к утилите rpicam-vid
+RPICAM_VID_CMD = "rpicam-vid"
 
 # GPIO‑вывод для DE/RE RS‑485‑трансивера
 # DE и /RE у вас объединены и посажены на GPIO17 (BCM‑нумерация).
@@ -92,19 +92,19 @@ def build_output_filename() -> Path:
 
 def record_video_h264(duration_ms: int) -> Path:
     """
-    Записывает видео с камеры в H.264 с помощью libcamera-vid.
+    Записывает видео с камеры в H.264 с помощью rpicam-vid.
 
     Возвращает путь к созданному файлу.
     """
     ensure_output_dir()
     output_path = build_output_filename()
 
-    # Команда libcamera-vid:
+    # Команда rpicam-vid:
     # -t <мс>  : длительность записи
     # -o <файл>: путь к выходному файлу
     # --codec h264 (по умолчанию для h264, можно явно указать)
     cmd = [
-        LIBCAMERA_VID_CMD,
+        RPICAM_VID_CMD,
         "-t",
         str(duration_ms),
         "-o",
@@ -128,18 +128,18 @@ def record_video_h264(duration_ms: int) -> Path:
         )
     except FileNotFoundError:
         print(
-            "Не найдена утилита 'libcamera-vid'. Установите пакет 'libcamera-apps':\n"
+            "Не найдена утилита 'rpicam-vid'. Установите пакет 'rpicam-apps':\n"
             "  sudo apt update\n"
-            "  sudo apt install -y libcamera-apps",
+            "  sudo apt install -y rpicam-apps",
             file=sys.stderr,
         )
         raise
 
     if result.returncode != 0:
-        print("Ошибка при выполнении libcamera-vid:", file=sys.stderr)
+        print("Ошибка при выполнении rpicam-vid:", file=sys.stderr)
         print("STDOUT:", result.stdout, file=sys.stderr)
         print("STDERR:", result.stderr, file=sys.stderr)
-        raise RuntimeError(f"libcamera-vid завершилась с кодом {result.returncode}")
+        raise RuntimeError(f"rpicam-vid завершилась с кодом {result.returncode}")
 
     print(f"Видео успешно записано: {output_path}")
     return output_path

@@ -25,7 +25,7 @@
 
 ✅ РЕШЕНИЕ:
   • Python 3 + asyncio (асинхронность)
-  • libcamera-vid (запись видео на Pi)
+  • rpicam-vid (запись видео на Pi)
   • ffmpeg (разбиение видео)
   • GPIO17 (управление DE/RE RS-485)
   • gpiozero + pyserial (управление GPIO и UART)
@@ -107,7 +107,7 @@
 Софт:
   ✓ Raspberry Pi OS (64-bit)
   ✓ Python 3.8+
-  ✓ libcamera-apps (для видео)
+  ✓ rpicam-apps (для видео)
   ✓ ffmpeg (для разбиения видео)
   ✓ pyserial (Python RS-485)
   ✓ gpiozero (Python GPIO)
@@ -231,7 +231,7 @@ if command == b"new_command":
 
 Проблема: Камера не записывает
 Решение:
-  1. Проверьте камеру: libcamera-vid -t 1000 -o test.h264
+  1. Проверьте камеру: rpicam-vid -t 1000 -o test.h264
   2. Активируйте камеру: sudo raspi-config → Interface Options → Camera
   3. Перезагрузитесь
 

@@ -87,7 +87,7 @@ CHUNK_SIZE_MB = 50                   # Размер частей
 │  GPIO Manager (GPIO17)                           │
 │  • Переключает DE/RE                            │
 ├──────────────────────────────────────────────────┤
-│  libcamera-vid (видеозапись)                    │
+│  rpicam-vid (видеозапись)                    │
 │  ffmpeg (разбиение видео)                       │
 └──────────────────────────────────────────────────┘
 ```
@@ -100,7 +100,7 @@ python3 test_components.py
 ```
 
 Проверяет:
-- ✓ libcamera-vid доступен
+- ✓ rpicam-vid доступен
 - ✓ pyserial установлен
 - ✓ gpiozero работает
 - ✓ UART порт найден
@@ -185,7 +185,7 @@ sudo python3 main.py
 ### Камера не записывает
 ```bash
 # Проверьте, что камера включена и работает:
-libcamera-vid -t 1000 -o /tmp/test.h264
+rpicam-vid -t 1000 -o /tmp/test.h264
 
 # Если не работает:
 sudo raspi-config  # Interface Options → Camera → Enable → Reboot
@@ -215,7 +215,7 @@ sudo raspi-config  # Interface Options → Camera → Enable → Reboot
 ## 📚 Дополнительная информация
 
 - [CONFIG.md](CONFIG.md) - Подробная конфигурация
-- [Документация libcamera](https://www.raspberrypi.com/documentation/computers/camera_software.html)
+- [Документация rpicam](https://www.raspberrypi.com/documentation/computers/camera_software.html)
 - [Документация RPi.GPIO](https://sourceforge.net/p/raspberry-gpio-python/wiki/Home/)
 - [RS-485 на Raspberry Pi](https://raspberrypi.stackexchange.com/questions/92246/)
 

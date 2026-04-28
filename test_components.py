@@ -9,23 +9,23 @@ import subprocess
 import time
 
 
-def test_libcamera() -> bool:
-    """Проверяет доступность libcamera-vid."""
-    print("\n[TEST] libcamera-vid...")
+def test_rpicam() -> bool:
+    """Проверяет доступность rpicam-vid."""
+    print("\n[TEST] rpicam-vid...")
     try:
         result = subprocess.run(
-            ["libcamera-vid", "--version"],
+            ["rpicam-vid", "--version"],
             capture_output=True,
             timeout=5
         )
         if result.returncode == 0:
-            print("  ✓ libcamera-vid доступен")
+            print("  ✓ rpicam-vid доступен")
             return True
         else:
-            print("  ✗ libcamera-vid вернул ошибку")
+            print("  ✗ rpicam-vid вернул ошибку")
             return False
     except FileNotFoundError:
-        print("  ✗ libcamera-vid не найден (установите: sudo apt install libcamera-apps)")
+        print("  ✗ rpicam-vid не найден (установите: sudo apt install rpicam-apps)")
         return False
     except Exception as e:
         print(f"  ✗ Ошибка: {e}")
@@ -95,7 +95,7 @@ def test_camera() -> bool:
     print("\n[TEST] Камера (захват одного кадра)...")
     try:
         result = subprocess.run(
-            ["libcamera-vid", "-t", "100", "-o", "/tmp/test.h264"],
+            ["rpicam-vid", "-t", "100", "-o", "/tmp/test.h264"],
             capture_output=True,
             timeout=5
         )
@@ -121,7 +121,7 @@ def main() -> int:
     print("=" * 50)
     
     tests = [
-        ("libcamera-vid", test_libcamera),
+        ("rpicam-vid", test_rpicam),
         ("pyserial", test_pyserial),
         ("gpiozero", test_gpiozero),
         ("UART порт", test_uart_port),

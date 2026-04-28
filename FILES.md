@@ -83,7 +83,7 @@ Python:
   • gpiozero - управление GPIO
 
 Системные утилиты:
-  • libcamera-vid - запись видео (libcamera-apps)
+  • rpicam-vid - запись видео (rpicam-apps)
   • ffmpeg - разбиение видео
   • bash - скрипты установки
 

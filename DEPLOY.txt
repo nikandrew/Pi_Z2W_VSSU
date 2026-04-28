@@ -95,7 +95,7 @@ DEPLOYMENT = """
   
   # Метод 3: Ручная установка
   sudo apt update && sudo apt upgrade -y
-  sudo apt install -y libcamera-apps python3-pip ffmpeg
+  sudo apt install -y rpicam-apps python3-pip ffmpeg
   pip install pyserial gpiozero
 
 ═════════════════════════════════════════════════════════════════════════
@@ -145,7 +145,7 @@ DEPLOYMENT = """
   python3 checklist.py
   
   Должны быть зеленые галочки (✓) у всех пунктов:
-    ✓ libcamera-vid
+    ✓ rpicam-vid
     ✓ pyserial
     ✓ gpiozero
     ✓ UART порт
@@ -174,7 +174,7 @@ DEPLOYMENT = """
 
 8.3. Запись тестового видео
 
-  libcamera-vid -t 5000 -o test.h264
+  rpicam-vid -t 5000 -o test.h264
   
   Создаст файл test.h264 (2-3 МБ) — проверка камеры
 
@@ -290,8 +290,8 @@ DEPLOYMENT = """
 Проблема: connection refused на SSH
   Решение: Убедитесь, что Pi подключена в сеть и включена
 
-Проблема: libcamera-vid не найден
-  Решение: sudo apt install -y libcamera-apps
+Проблема: rpicam-vid не найден
+  Решение: sudo apt install -y rpicam-apps
 
 Проблема: GPIO17 выдает Permission denied
   Решение: Запустите с sudo: sudo python3 main.py
@@ -307,7 +307,7 @@ DEPLOYMENT = """
     1. Проверьте подключение CSI кабеля
     2. Активируйте: sudo raspi-config → Interface Options → Camera
     3. Перезагрузитесь
-    4. Тест: libcamera-vid -t 5000 -o test.h264
+    4. Тест: rpicam-vid -t 5000 -o test.h264
 
 ═════════════════════════════════════════════════════════════════════════
 

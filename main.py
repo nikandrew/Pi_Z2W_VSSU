@@ -8,7 +8,7 @@
 
 Требования:
   sudo apt update && sudo apt upgrade -y
-  sudo apt install -y libcamera-apps python3-pip
+  sudo apt install -y rpicam-apps python3-pip
   pip install pyserial gpiozero
 """
 
@@ -221,14 +221,14 @@ def build_output_filename() -> Path:
 
 async def record_video(duration_ms: int) -> Optional[Path]:
     """
-    Записывает видео с камеры с помощью libcamera-vid.
+    Записывает видео с камеры с помощью rpicam-vid.
     Запуск в отдельном процессе через asyncio.
     """
     ensure_output_dir()
     output_path = build_output_filename()
     
     cmd = [
-        "libcamera-vid",
+        "rpicam-vid",
         "-t", str(duration_ms),
         "-o", str(output_path),
         "--codec", "h264",
@@ -239,7 +239,7 @@ async def record_video(duration_ms: int) -> Optional[Path]:
     logger.debug(f"Команда: {' '.join(cmd)}")
     
     try:
-        # Запускаем libcamera-vid в отдельном процессе
+        # Запускаем rpicam-vid в отдельном процессе
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -250,7 +250,7 @@ async def record_video(duration_ms: int) -> Optional[Path]:
         stdout, stderr = await proc.communicate()
         
         if proc.returncode != 0:
-            logger.error(f"libcamera-vid ошибка (код {proc.returncode})")
+            logger.error(f"rpicam-vid ошибка (код {proc.returncode})")
             logger.error(f"STDERR: {stderr.decode()}")
             return None
         
@@ -264,7 +264,7 @@ async def record_video(duration_ms: int) -> Optional[Path]:
     
     except FileNotFoundError:
         logger.error(
-            "libcamera-vid не найден. Установите: sudo apt install -y libcamera-apps"
+            "rpicam-vid не найден. Установите: sudo apt install -y rpicam-apps"
         )
         return None
     except Exception as e:
