@@ -44,6 +44,7 @@ UART_BAUDRATE = 115200
 RS485_GPIO_PIN = 17  # DE и RE объединены на GPIO17
 RS485_RX_MODE = False  # LOW
 RS485_TX_MODE = True  # HIGH
+RS485_USE_GPIO = os.environ.get("RS485_USE_GPIO", "1").lower() not in ("0", "false", "no", "off")
 
 # Команды
 START_CMD = b"start"
@@ -82,6 +83,13 @@ class RS485Manager:
     
     def _init_gpio(self) -> None:
         """Инициализирует GPIO для RS-485."""
+        if not RS485_USE_GPIO:
+            logger.warning(
+                "Управление GPIO17 отключено через RS485_USE_GPIO=0. "
+                "Прием будет работать, ответ возможен только с auto-direction RS-485 адаптером."
+            )
+            return
+
         if not GPIO_AVAILABLE:
             logger.warning("GPIO недоступен, RS-485 будет работать в режиме приема")
             return
@@ -92,7 +100,14 @@ class RS485Manager:
             self.enabled = True
             logger.info(f"GPIO{RS485_GPIO_PIN} инициализирован (режим приема)")
         except Exception as e:
-            logger.error(f"Ошибка инициализации GPIO: {e}")
+            self.gpio = None
+            self.enabled = False
+            logger.warning(f"GPIO{RS485_GPIO_PIN} недоступен: {e}")
+            logger.warning(
+                "Если видите 'GPIO busy', остановите другие скрипты, которые используют GPIO17 "
+                "(main.py, test_rs485.py, test_components.py, RS485_*.py), либо перезагрузите Pi. "
+                "Для проверки только приема можно запустить: RS485_USE_GPIO=0 python3 main.py"
+            )
     
     def set_rx_mode(self) -> None:
         """Переводит в режим приема (DE/RE = LOW)."""
@@ -174,6 +189,11 @@ class RS485Handler:
         """Отправляет ответное сообщение по RS-485."""
         if not self.ser:
             return False
+        if not self.gpio_manager.enabled:
+            logger.warning(
+                "GPIO управления DE/RE недоступен; отправляю ответ без переключения направления. "
+                "Это сработает только с auto-direction RS-485 адаптером."
+            )
         
         try:
             self.gpio_manager.set_tx_mode()

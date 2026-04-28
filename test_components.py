@@ -86,7 +86,8 @@ def test_gpio17() -> bool:
         return True
     except Exception as e:
         print(f"  ✗ Ошибка GPIO17: {e}")
-        print("     Убедитесь, что запускаете скрипт с правами суперпользователя: sudo python3 test_components.py")
+        print("     Если ошибка содержит 'busy', остановите main.py/test_rs485.py/другие RS485_*.py или перезагрузите Pi")
+        print("     Если ошибка про права, запустите: sudo python3 test_components.py")
         return False
 
 

@@ -51,7 +51,8 @@ def test_gpio() -> None:
         print("  ✓ GPIO работает корректно")
     except Exception as e:
         print(f"  ✗ Ошибка GPIO: {e}")
-        print("  Запустите с sudo: sudo python3 test_rs485.py")
+        print("  Если ошибка содержит 'busy', остановите main.py/test_components.py/другие RS485_*.py или перезагрузите Pi")
+        print("  Если ошибка про права, запустите: sudo python3 test_rs485.py")
         sys.exit(1)
 
 
