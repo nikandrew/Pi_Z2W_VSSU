@@ -157,6 +157,7 @@ class RS485Handler:
             if self.ser.in_waiting > 0:
                 data = self.ser.read(self.ser.in_waiting)
                 self.buffer.extend(data)
+                logger.info(f"RS-485 RX: {data!r}")
                 
                 # Пытаемся найти команду в буфере
                 if START_CMD in self.buffer:

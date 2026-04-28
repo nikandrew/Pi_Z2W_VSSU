@@ -19,7 +19,16 @@ except ImportError:
     sys.exit(1)
 
 
-def send_command(port: str, baudrate: int, command: bytes, timeout: float = 5) -> bool:
+EXPECTED_REPLY = b"recording_complete"
+
+
+def send_command(
+    port: str,
+    baudrate: int,
+    command: bytes,
+    timeout: float = 90,
+    expected_reply: bytes = EXPECTED_REPLY,
+) -> bool:
     """
     Отправляет команду и ждет ответа.
     """
@@ -41,6 +50,7 @@ def send_command(port: str, baudrate: int, command: bytes, timeout: float = 5) -
         print(f"\n[SEND] Отправка: {command}")
         ser.write(command)
         ser.flush()
+        print("       Команда отправлена. Если main.py сработал, ответ придет после записи видео.")
         
         # Ожидание ответа
         print(f"\n[WAIT] Ожидание ответа (таймаут {timeout} сек)...")
@@ -52,13 +62,20 @@ def send_command(port: str, baudrate: int, command: bytes, timeout: float = 5) -
                 chunk = ser.read(ser.in_waiting)
                 response += chunk
                 print(f"[RECV] Получено: {chunk}")
+                if expected_reply and expected_reply in response:
+                    break
             time.sleep(0.01)
         
-        if response:
+        if expected_reply and expected_reply in response:
             print(f"\n✓ Полный ответ: {response}")
             print(f"  Размер: {len(response)} байт")
             print(f"  Hex: {response.hex()}")
             return True
+        elif response:
+            print(f"\n! Получен ответ, но без ожидаемого {expected_reply!r}: {response}")
+            print(f"  Размер: {len(response)} байт")
+            print(f"  Hex: {response.hex()}")
+            return False
         else:
             print("\n✗ Ответ не получен (проверьте подключение RS-485)")
             return False
@@ -109,8 +126,13 @@ def main():
     parser.add_argument(
         "--timeout",
         type=float,
-        default=5,
-        help="Таймаут ответа в секундах (по умолчанию 5)"
+        default=90,
+        help="Таймаут ответа в секундах (по умолчанию 90, т.к. main.py пишет видео 60 секунд)"
+    )
+    parser.add_argument(
+        "--expect",
+        default=EXPECTED_REPLY.decode(),
+        help="Ожидаемый ответ (по умолчанию 'recording_complete')"
     )
     parser.add_argument(
         "--loop",
@@ -128,7 +150,9 @@ def main():
     print(f"Порт: {args.port}")
     print(f"Скорость: {args.baudrate} бод")
     print(f"Команда: {command}")
+    expected_reply = args.expect.encode() if args.expect else b""
     print(f"Таймаут: {args.timeout} сек")
+    print(f"Ожидаемый ответ: {expected_reply!r}")
     
     if args.loop:
         print("\nРежим циклической отправки (Ctrl+C для выхода)")
@@ -136,14 +160,14 @@ def main():
         try:
             while True:
                 print(f"\n\n[ИТЕРАЦИЯ {iteration}]")
-                success = send_command(args.port, args.baudrate, command, args.timeout)
+                success = send_command(args.port, args.baudrate, command, args.timeout, expected_reply)
                 iteration += 1
                 time.sleep(2)  # Пауза между итерациями
         except KeyboardInterrupt:
             print("\n\nОстановлено пользователем")
             return 0
     else:
-        success = send_command(args.port, args.baudrate, command, args.timeout)
+        success = send_command(args.port, args.baudrate, command, args.timeout, expected_reply)
         return 0 if success else 1
 
 
