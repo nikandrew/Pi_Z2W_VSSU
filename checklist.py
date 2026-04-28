@@ -96,7 +96,13 @@ class CommandCheckItem(ChecklistItem):
 
 
 class PythonPackageCheckItem(ChecklistItem):
-    def __init__(self, package: str, import_name: str = None, critical: bool = False):
+    def __init__(
+        self,
+        package: str,
+        import_name: str = None,
+        install_hint: str = None,
+        critical: bool = False,
+    ):
         super().__init__(
             f"Пакет: {package}",
             f"Проверка установки Python пакета",
@@ -104,6 +110,7 @@ class PythonPackageCheckItem(ChecklistItem):
         )
         self.package = package
         self.import_name = import_name or package.replace("-", "_")
+        self.install_hint = install_hint or f"sudo apt install -y python3-{package}"
     
     def check(self) -> None:
         try:
@@ -111,7 +118,7 @@ class PythonPackageCheckItem(ChecklistItem):
             self.passed = True
             self.message = "Установлен"
         except ImportError:
-            self.message = f"Не установлен (pip install {self.package})"
+            self.message = f"Не установлен ({self.install_hint})"
 
 
 def main() -> int:
@@ -135,8 +142,17 @@ def main() -> int:
         CommandCheckItem("python3 --version", "Python 3", critical=True),
         
         # Python пакеты
-        PythonPackageCheckItem("pyserial", critical=True),
-        PythonPackageCheckItem("gpiozero", critical=True),
+        PythonPackageCheckItem(
+            "pyserial",
+            import_name="serial",
+            install_hint="sudo apt install -y python3-serial",
+            critical=True,
+        ),
+        PythonPackageCheckItem(
+            "gpiozero",
+            install_hint="sudo apt install -y python3-gpiozero",
+            critical=True,
+        ),
     ]
     
     # Проверяем все

@@ -40,7 +40,7 @@ def test_pyserial() -> bool:
         print(f"  ✓ pyserial версия: {serial.__version__}")
         return True
     except ImportError:
-        print("  ✗ pyserial не установлен (pip install pyserial)")
+        print("  ✗ pyserial не установлен (sudo apt install -y python3-serial)")
         return False
 
 
@@ -52,7 +52,7 @@ def test_gpiozero() -> bool:
         print("  ✓ gpiozero доступен")
         return True
     except ImportError:
-        print("  ✗ gpiozero не установлен (pip install gpiozero)")
+        print("  ✗ gpiozero не установлен (sudo apt install -y python3-gpiozero)")
         return False
 
 

@@ -21,6 +21,8 @@ sudo apt install -y \
     python3-picamera2 \
     python3-pip \
     python3-venv \
+    python3-serial \
+    python3-gpiozero \
     rpicam-apps \
     ffmpeg \
     git \
@@ -38,17 +40,9 @@ else
     echo "  ! И перезагрузитесь"
 fi
 
-# 4. Установка Python пакетов
+# 4. Проверка UART
 echo ""
-echo "[4/5] Установка Python зависимостей..."
-pip install --upgrade pip --break-system-packages
-pip install --break-system-packages \
-    pyserial \
-    gpiozero
-
-# 5. Проверка UART
-echo ""
-echo "[5/5] Проверка UART..."
+echo "[4/4] Проверка UART..."
 if [ -e /dev/serial0 ]; then
     echo "  ✓ /dev/serial0 найден"
 elif [ -e /dev/ttyAMA0 ]; then

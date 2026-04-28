@@ -9,7 +9,7 @@
 Требования:
   sudo apt update && sudo apt upgrade -y
   sudo apt install -y rpicam-apps python3-pip
-  pip install pyserial gpiozero
+  sudo apt install -y python3-serial python3-gpiozero
 """
 
 import asyncio
@@ -25,7 +25,7 @@ from typing import Optional
 try:
     import serial
 except ImportError:
-    print("Установите: pip install pyserial", file=sys.stderr)
+    print("Установите: sudo apt install -y python3-serial", file=sys.stderr)
     sys.exit(1)
 
 try:

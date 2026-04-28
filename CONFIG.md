@@ -28,7 +28,7 @@ SUCCESS_REPLY = b"recording_complete" # Ответ об успехе
 # На самой Pi:
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y rpicam-apps python3-pip ffmpeg
-pip install pyserial gpiozero
+sudo apt install -y python3-serial python3-gpiozero
 
 # Включить камеру:
 sudo raspi-config

@@ -13,7 +13,7 @@ import sys
 try:
     import serial
 except ImportError:
-    print("Установите pyserial: pip install pyserial", file=sys.stderr)
+    print("Установите pyserial: sudo apt install -y python3-serial", file=sys.stderr)
     sys.exit(1)
 
 try:

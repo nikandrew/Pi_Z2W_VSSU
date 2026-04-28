@@ -96,7 +96,7 @@ DEPLOYMENT = """
   # Метод 3: Ручная установка
   sudo apt update && sudo apt upgrade -y
   sudo apt install -y rpicam-apps python3-pip ffmpeg
-  pip install pyserial gpiozero
+  sudo apt install -y python3-serial python3-gpiozero
 
 ═════════════════════════════════════════════════════════════════════════
 

@@ -11,13 +11,13 @@ import time
 try:
     import serial
 except ImportError:
-    print("Установите: pip install pyserial", file=sys.stderr)
+    print("Установите: sudo apt install -y python3-serial", file=sys.stderr)
     sys.exit(1)
 
 try:
     from gpiozero import DigitalOutputDevice
 except ImportError:
-    print("Установите: pip install gpiozero", file=sys.stderr)
+    print("Установите: sudo apt install -y python3-gpiozero", file=sys.stderr)
     sys.exit(1)
 
 

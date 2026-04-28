@@ -31,6 +31,8 @@ sudo apt install -y \
     python3-picamera2 \
     python3-pip \
     python3-venv \
+    python3-serial \
+    python3-gpiozero \
     rpicam-apps \
     ffmpeg \
     git \
@@ -38,14 +40,7 @@ sudo apt install -y \
     libcamera-tools
 
 echo \"\"
-echo -e \"${BLUE}[ЭТАП 3/5]${NC} Установка Python пакетов...\"
-pip install --upgrade pip --break-system-packages
-pip install --break-system-packages \
-    pyserial \
-    gpiozero
-
-echo \"\"
-echo -e \"${BLUE}[ЭТАП 4/5]${NC} Активация камеры...\"
+echo -e \"${BLUE}[ЭТАП 3/4]${NC} Активация камеры...\"
 if grep -q \"camera_auto_detect=1\" /boot/firmware/config.txt; then
     echo -e \"${GREEN}✓${NC} Камера уже активирована\"
 else
@@ -56,7 +51,7 @@ else
 fi
 
 echo \"\"
-echo -e \"${BLUE}[ЭТАП 5/5]${NC} Проверка UART...\"
+echo -e \"${BLUE}[ЭТАП 4/4]${NC} Проверка UART...\"
 if [ -e /dev/serial0 ]; then
     echo -e \"${GREEN}✓${NC} Найден /dev/serial0\"
 elif [ -e /dev/ttyAMA0 ]; then

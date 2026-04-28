@@ -15,7 +15,7 @@ from pathlib import Path
 try:
     import serial
 except ImportError:
-    print("Установите: pip install pyserial", file=sys.stderr)
+    print("Установите: sudo apt install -y python3-serial", file=sys.stderr)
     sys.exit(1)
 
 

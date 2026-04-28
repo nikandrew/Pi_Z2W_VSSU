@@ -14,7 +14,7 @@ Raspberry Pi Zero 2W:
     sudo apt update
     sudo apt install -y rpicam-apps
 - Установлен pyserial:
-    pip install pyserial
+    sudo apt install -y python3-serial
 """
 
 import datetime
@@ -28,7 +28,7 @@ from pathlib import Path
 try:
     import serial  # type: ignore
 except ImportError:
-    print("Не найден модуль 'serial' (pyserial). Установите: pip install pyserial", file=sys.stderr)
+    print("Не найден модуль 'serial' (pyserial). Установите: sudo apt install -y python3-serial", file=sys.stderr)
     sys.exit(1)
 
 try:
