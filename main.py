@@ -15,6 +15,7 @@
 import asyncio
 import binascii
 import datetime
+import json
 import logging
 import os
 import subprocess
@@ -51,6 +52,11 @@ RS485_USE_GPIO = os.environ.get("RS485_USE_GPIO", "1").lower() not in ("0", "fal
 START_CMD = b"\x00\x01"
 CRC_SIZE_BYTES = 4
 SUCCESS_REPLY = b"recording_complete"
+FILE_FRAME_MAGIC = b"VSSU"
+FILE_FRAME_META = 1
+FILE_FRAME_CHUNK = 2
+FILE_FRAME_END = 3
+FILE_TRANSFER_CHUNK_SIZE = 1024
 
 # Видео
 VIDEO_DURATION_MS = 10_000  # 10 секунд
@@ -88,6 +94,27 @@ def verify_crc32_iso_hdlc(frame: bytes) -> bool:
     payload = frame[:-CRC_SIZE_BYTES]
     received_crc = int.from_bytes(frame[-CRC_SIZE_BYTES:], "little")
     return received_crc == crc32_iso_hdlc(payload)
+
+
+def make_file_frame(frame_type: int, payload: bytes) -> bytes:
+    return (
+        FILE_FRAME_MAGIC
+        + bytes([frame_type])
+        + len(payload).to_bytes(4, "little")
+        + payload
+        + crc32_iso_hdlc(payload).to_bytes(CRC_SIZE_BYTES, "little")
+    )
+
+
+def file_crc32_iso_hdlc(path: Path) -> int:
+    crc = 0
+    with open(path, "rb") as file:
+        while True:
+            chunk = file.read(64 * 1024)
+            if not chunk:
+                break
+            crc = binascii.crc32(chunk, crc)
+    return crc & 0xFFFFFFFF
 
 
 # ==================== GPIO УПРАВЛЕНИЕ ====================
@@ -242,8 +269,8 @@ class RS485Handler:
         
         return None
     
-    async def send_reply(self, message: bytes) -> bool:
-        """Отправляет ответное сообщение по RS-485."""
+    async def send_bytes(self, payload: bytes, log_payload: bool = True) -> bool:
+        """Отправляет байты по RS-485 с переключением направления."""
         if not self.ser:
             return False
         if not self.gpio_manager.enabled:
@@ -256,19 +283,71 @@ class RS485Handler:
             self.gpio_manager.set_tx_mode()
             await asyncio.sleep(0.001)  # Стабилизация
             
-            self.ser.write(message)
+            self.ser.write(payload)
             self.ser.flush()
             
             await asyncio.sleep(0.001)
             self.gpio_manager.set_rx_mode()
             
-            logger.info(f"Отправлено по RS-485: {message}")
+            if log_payload:
+                logger.info(f"Отправлено по RS-485: {payload}")
             return True
         except serial.SerialException as e:
             logger.error(f"Ошибка отправки RS-485: {e}")
             return False
         finally:
             self.gpio_manager.set_rx_mode()
+
+    async def send_reply(self, message: bytes) -> bool:
+        """Отправляет ответное сообщение по RS-485."""
+        return await self.send_bytes(message)
+
+    async def send_file(self, file_path: Path) -> bool:
+        """Отправляет записанный файл фреймами VSSU с CRC-32/ISO-HDLC."""
+        if not file_path.exists():
+            logger.error(f"Файл для отправки не найден: {file_path}")
+            return False
+
+        file_size = file_path.stat().st_size
+        file_crc = file_crc32_iso_hdlc(file_path)
+        metadata = {
+            "name": file_path.name,
+            "size": file_size,
+            "crc32": file_crc,
+        }
+        metadata_payload = json.dumps(metadata, separators=(",", ":")).encode("utf-8")
+
+        logger.info(
+            f"Начало передачи файла по RS-485: {file_path.name}, "
+            f"{file_size} bytes, crc=0x{file_crc:08x}"
+        )
+
+        if not await self.send_bytes(make_file_frame(FILE_FRAME_META, metadata_payload), log_payload=False):
+            return False
+
+        sent = 0
+        chunk_index = 0
+        with open(file_path, "rb") as file:
+            while True:
+                chunk = file.read(FILE_TRANSFER_CHUNK_SIZE)
+                if not chunk:
+                    break
+
+                if not await self.send_bytes(make_file_frame(FILE_FRAME_CHUNK, chunk), log_payload=False):
+                    return False
+
+                sent += len(chunk)
+                chunk_index += 1
+                if chunk_index == 1 or chunk_index % 50 == 0 or sent == file_size:
+                    percent = sent * 100 / file_size if file_size else 100
+                    logger.info(f"Передача файла: {sent}/{file_size} bytes ({percent:.1f}%)")
+                await asyncio.sleep(0.003)
+
+        if not await self.send_bytes(make_file_frame(FILE_FRAME_END, b""), log_payload=False):
+            return False
+
+        logger.info(f"Файл отправлен по RS-485: {file_path.name}")
+        return True
     
     def disconnect(self) -> None:
         """Закрывает последовательный порт."""
@@ -509,8 +588,9 @@ class CameraSystem:
             
             logger.info(f"Обработка завершена успешно ({len(chunks)} файлов)")
             
-            # 3. Отправляем сообщение об успехе
-            await self.rs485.send_reply(SUCCESS_REPLY)
+            # 3. Отправляем сообщение об успехе и сам записанный файл
+            if await self.rs485.send_reply(SUCCESS_REPLY):
+                await self.rs485.send_file(video_path)
         
         except Exception as e:
             logger.error(f"Ошибка при обработке START: {e}")
