@@ -26,6 +26,15 @@ DEFAULT_COMMAND = b"\x00\x01"
 DEFAULT_PREAMBLE = b"\x55"
 
 
+def wait_us(delay_us: float) -> None:
+    """Короткая busy-wait задержка для межбайтовых пауз."""
+    if delay_us <= 0:
+        return
+    end_time = time.perf_counter() + delay_us / 1_000_000
+    while time.perf_counter() < end_time:
+        pass
+
+
 def print_ports() -> None:
     """Печатает доступные последовательные порты."""
     ports = list(list_ports.comports())
@@ -48,6 +57,7 @@ def send_command(
     post_write_delay: float = 0.05,
     repeat: int = 2,
     repeat_delay: float = 0.05,
+    inter_byte_delay_us: float = 50,
     preamble: bytes = DEFAULT_PREAMBLE,
     rts: Optional[bool] = None,
     dtr: Optional[bool] = None,
@@ -93,9 +103,12 @@ def send_command(
             if i > 0 and repeat_delay > 0:
                 time.sleep(repeat_delay)
             frame = preamble + command
-            written = ser.write(frame)
+            written = 0
+            for byte in frame:
+                written += ser.write(bytes([byte]))
+                ser.flush()
+                wait_us(inter_byte_delay_us)
             bytes_written += written
-            ser.flush()
             print(f"       Кадр {i + 1}: записано {written} байт, hex={frame.hex()}")
         if post_write_delay > 0:
             time.sleep(post_write_delay)
@@ -219,6 +232,12 @@ def main():
         help="Пауза между повторами команды, сек (по умолчанию 0.05)"
     )
     parser.add_argument(
+        "--inter-byte-delay-us",
+        type=float,
+        default=50,
+        help="Задержка между отправкой байтов, мкс (по умолчанию 50)"
+    )
+    parser.add_argument(
         "--preamble-hex",
         default=DEFAULT_PREAMBLE.hex(),
         help="Преамбула перед командой в hex (по умолчанию 55; пустая строка отключает)"
@@ -264,6 +283,7 @@ def main():
     print(f"Ожидаемый ответ: {expected_reply!r}")
     print(f"Преамбула: {preamble.hex() or '<нет>'}")
     print(f"Повторы команды: {args.repeat}, пауза: {args.repeat_delay} сек")
+    print(f"Задержка между байтами: {args.inter_byte_delay_us} мкс")
     print(f"RTS: {'не менять' if rts is None else rts}")
     print(f"DTR: {'не менять' if dtr is None else dtr}")
     
@@ -283,6 +303,7 @@ def main():
                     args.post_write_delay,
                     args.repeat,
                     args.repeat_delay,
+                    args.inter_byte_delay_us,
                     preamble,
                     rts,
                     dtr,
@@ -303,6 +324,7 @@ def main():
             args.post_write_delay,
             args.repeat,
             args.repeat_delay,
+            args.inter_byte_delay_us,
             preamble,
             rts,
             dtr,
