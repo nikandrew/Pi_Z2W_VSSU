@@ -2,7 +2,7 @@
 """
 RS485_test.py
 
-Raspberry Pi Zero 2W: ожидание сообщения 0x00 0x01 по RS485 (UART 115200 бод),
+Raspberry Pi Zero 2W: ожидание сообщения 0x00 0x01 по RS485 (UART 1000000 бод),
 ответ "Recording_started". RE и DE трансивера объединены на GPIO17.
 Ожидание ввода реализовано через select().
 """
@@ -28,7 +28,7 @@ except ImportError:
 # ---------------------- Настройки ----------------------
 
 UART_PORT = "/dev/serial0"
-UART_BAUDRATE = 115200
+UART_BAUDRATE = 1000000
 RS485_DE_RE_GPIO = 17
 
 EXPECTED_MSG = b"\x00\x01"

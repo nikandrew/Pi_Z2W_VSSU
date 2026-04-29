@@ -29,7 +29,7 @@ except ImportError:
     raise
 
 
-BAUDRATE = 115200
+BAUDRATE = 1000000
 COMMAND = b"\x00\x01"
 EXPECTED_REPLY = b"recording_complete"
 TIMEOUT_SECONDS = 35

@@ -13,7 +13,7 @@ def set_receive_mode():
     
 ser = serial.Serial(
     port='/dev/serial0',   # UART порт
-    baudrate=115200,
+    baudrate=1000000,
     timeout=1
 )
 
