@@ -39,9 +39,11 @@ FILE_FRAME_MAGIC = b"VSSU"
 FILE_FRAME_META = 1
 FILE_FRAME_CHUNK = 2
 FILE_FRAME_END = 3
-FILE_FRAME_HEADER_SIZE = len(FILE_FRAME_MAGIC) + 1 + 4
 CRC_SIZE_BYTES = 4
+FILE_FRAME_HEADER_SIZE = len(FILE_FRAME_MAGIC) + 4 + 1 + 4
+FILE_ACK_MAGIC = b"VACK"
 FILE_IDLE_TIMEOUT_SECONDS = 10
+FILE_FINAL_ACK_GRACE_SECONDS = 2.5
 RECEIVED_DIR = Path("received")
 
 
@@ -52,6 +54,15 @@ def crc32_iso_hdlc(data: bytes) -> int:
 
 def append_crc32_iso_hdlc(data: bytes) -> bytes:
     return data + crc32_iso_hdlc(data).to_bytes(CRC_SIZE_BYTES, "little")
+
+
+def build_file_ack(seq: int, frame_type: int, frame_crc: int) -> bytes:
+    body = (
+        seq.to_bytes(4, "little")
+        + bytes([frame_type])
+        + frame_crc.to_bytes(CRC_SIZE_BYTES, "little")
+    )
+    return FILE_ACK_MAGIC + body + crc32_iso_hdlc(body).to_bytes(CRC_SIZE_BYTES, "little")
 
 
 def file_crc32_iso_hdlc(path: Path) -> int:
@@ -344,7 +355,7 @@ class HostSimulatorApp:
 
         self.root.after(0, self._finish_command)
 
-    def _extract_file_frame(self, buffer: bytearray) -> Optional[tuple[int, bytes]]:
+    def _extract_file_frame(self, buffer: bytearray) -> Optional[tuple[int, int, bytes, int]]:
         magic_idx = buffer.find(FILE_FRAME_MAGIC)
         if magic_idx < 0:
             if len(buffer) > len(FILE_FRAME_MAGIC):
@@ -358,9 +369,13 @@ class HostSimulatorApp:
         if len(buffer) < FILE_FRAME_HEADER_SIZE:
             return None
 
-        frame_type = buffer[len(FILE_FRAME_MAGIC)]
+        seq_start = len(FILE_FRAME_MAGIC)
+        type_index = seq_start + 4
+        len_start = type_index + 1
+        seq = int.from_bytes(buffer[seq_start:type_index], "little")
+        frame_type = buffer[type_index]
         payload_len = int.from_bytes(
-            buffer[len(FILE_FRAME_MAGIC) + 1:FILE_FRAME_HEADER_SIZE],
+            buffer[len_start:FILE_FRAME_HEADER_SIZE],
             "little",
         )
         frame_len = FILE_FRAME_HEADER_SIZE + payload_len + CRC_SIZE_BYTES
@@ -370,16 +385,26 @@ class HostSimulatorApp:
         payload_start = FILE_FRAME_HEADER_SIZE
         payload_end = payload_start + payload_len
         payload = bytes(buffer[payload_start:payload_end])
+        body = bytes(buffer[len(FILE_FRAME_MAGIC):payload_end])
         received_crc = int.from_bytes(buffer[payload_end:frame_len], "little")
-        expected_crc = crc32_iso_hdlc(payload)
+        expected_crc = crc32_iso_hdlc(body)
         del buffer[:frame_len]
 
         if received_crc != expected_crc:
-            raise ValueError(
-                f"Bad frame CRC: received=0x{received_crc:08x}, expected=0x{expected_crc:08x}"
+            self.log(
+                f"[FILE] Bad frame CRC, ACK not sent: seq={seq}, type={frame_type}, "
+                f"received=0x{received_crc:08x}, expected=0x{expected_crc:08x}"
             )
+            return None
 
-        return frame_type, payload
+        return seq, frame_type, payload, received_crc
+
+    def _send_file_ack(self, seq: int, frame_type: int, frame_crc: int) -> None:
+        assert self.serial_port is not None
+        ack = build_file_ack(seq, frame_type, frame_crc)
+        self.serial_port.write(ack)
+        self.serial_port.flush()
+        self.log(f"[ACK] Sent: seq={seq}, type={frame_type}")
 
     def _receive_file(self, initial_buffer: bytes) -> Optional[Path]:
         assert self.serial_port is not None
@@ -393,6 +418,9 @@ class HostSimulatorApp:
         received_size = 0
         last_log_percent = -1
         idle_start = time.monotonic()
+        processed_sequences: set[int] = set()
+        completed_path: Optional[Path] = None
+        final_grace_deadline: Optional[float] = None
 
         self.log("[FILE] Waiting for file transfer frames...")
 
@@ -400,6 +428,8 @@ class HostSimulatorApp:
             while True:
                 frame = self._extract_file_frame(buffer)
                 if frame is None:
+                    if final_grace_deadline is not None and time.monotonic() >= final_grace_deadline:
+                        return completed_path
                     if self.serial_port.in_waiting > 0:
                         chunk = self.serial_port.read(self.serial_port.in_waiting)
                         buffer.extend(chunk)
@@ -410,7 +440,13 @@ class HostSimulatorApp:
                         time.sleep(0.005)
                     continue
 
-                frame_type, payload = frame
+                seq, frame_type, payload, frame_crc = frame
+                self._send_file_ack(seq, frame_type, frame_crc)
+
+                if seq in processed_sequences:
+                    self.log(f"[FILE] Duplicate frame acknowledged and skipped: seq={seq}")
+                    continue
+                processed_sequences.add(seq)
 
                 if frame_type == FILE_FRAME_META:
                     metadata = json.loads(payload.decode("utf-8"))
@@ -464,7 +500,11 @@ class HostSimulatorApp:
                         f"[FILE] Transfer complete: {actual_size} bytes, "
                         f"crc=0x{actual_crc:08x}"
                     )
-                    return output_path
+                    completed_path = output_path
+                    final_grace_deadline = time.monotonic() + FILE_FINAL_ACK_GRACE_SECONDS
+                    self.log(
+                        f"[FILE] Waiting {FILE_FINAL_ACK_GRACE_SECONDS:g} sec for possible final ACK retry..."
+                    )
 
                 else:
                     raise ValueError(f"Unknown file frame type: {frame_type}")
