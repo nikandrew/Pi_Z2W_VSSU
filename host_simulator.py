@@ -23,6 +23,7 @@ except ImportError:
 
 EXPECTED_REPLY = b"recording_complete"
 DEFAULT_COMMAND = b"\x00\x01"
+DEFAULT_PREAMBLE = b"\x55"
 
 
 def print_ports() -> None:
@@ -47,6 +48,7 @@ def send_command(
     post_write_delay: float = 0.05,
     repeat: int = 2,
     repeat_delay: float = 0.05,
+    preamble: bytes = DEFAULT_PREAMBLE,
     rts: Optional[bool] = None,
     dtr: Optional[bool] = None,
 ) -> bool:
@@ -83,17 +85,18 @@ def send_command(
         ser.reset_input_buffer()
         ser.reset_output_buffer()
         
-        # Отправка команды. Повтор помогает USB-RS485 адаптерам, которые теряют первый 0x00
-        # при включении передачи.
+        # Преамбула и повтор помогают USB-RS485 адаптерам, которые теряют/искажают
+        # первый байт при включении передачи. main.py ищет только command и игнорирует мусор.
         print(f"\n[SEND] Отправка: {command}")
         bytes_written = 0
         for i in range(max(1, repeat)):
             if i > 0 and repeat_delay > 0:
                 time.sleep(repeat_delay)
-            written = ser.write(command)
+            frame = preamble + command
+            written = ser.write(frame)
             bytes_written += written
             ser.flush()
-            print(f"       Кадр {i + 1}: записано {written} байт, hex={command.hex()}")
+            print(f"       Кадр {i + 1}: записано {written} байт, hex={frame.hex()}")
         if post_write_delay > 0:
             time.sleep(post_write_delay)
         print(f"       Всего записано байт в COM-порт: {bytes_written}")
@@ -216,6 +219,11 @@ def main():
         help="Пауза между повторами команды, сек (по умолчанию 0.05)"
     )
     parser.add_argument(
+        "--preamble-hex",
+        default=DEFAULT_PREAMBLE.hex(),
+        help="Преамбула перед командой в hex (по умолчанию 55; пустая строка отключает)"
+    )
+    parser.add_argument(
         "--rts",
         choices=["on", "off"],
         help="Принудительно установить RTS; полезно для некоторых USB-RS485 адаптеров"
@@ -237,6 +245,11 @@ def main():
     except ValueError:
         print(f"Некорректный hex для --command-hex: {args.command_hex!r}", file=sys.stderr)
         return 1
+    try:
+        preamble = bytes.fromhex(args.preamble_hex)
+    except ValueError:
+        print(f"Некорректный hex для --preamble-hex: {args.preamble_hex!r}", file=sys.stderr)
+        return 1
     rts = None if args.rts is None else args.rts == "on"
     dtr = None if args.dtr is None else args.dtr == "on"
     
@@ -249,6 +262,7 @@ def main():
     expected_reply = args.expect.encode() if args.expect else b""
     print(f"Таймаут: {args.timeout} сек")
     print(f"Ожидаемый ответ: {expected_reply!r}")
+    print(f"Преамбула: {preamble.hex() or '<нет>'}")
     print(f"Повторы команды: {args.repeat}, пауза: {args.repeat_delay} сек")
     print(f"RTS: {'не менять' if rts is None else rts}")
     print(f"DTR: {'не менять' if dtr is None else dtr}")
@@ -269,6 +283,7 @@ def main():
                     args.post_write_delay,
                     args.repeat,
                     args.repeat_delay,
+                    preamble,
                     rts,
                     dtr,
                 )
@@ -288,6 +303,7 @@ def main():
             args.post_write_delay,
             args.repeat,
             args.repeat_delay,
+            preamble,
             rts,
             dtr,
         )
