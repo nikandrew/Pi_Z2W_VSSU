@@ -190,8 +190,12 @@ class RS485Handler:
                 # Пытаемся найти команду в буфере
                 if START_CMD in self.buffer:
                     idx = self.buffer.find(START_CMD)
-                    self.buffer = self.buffer[idx + len(START_CMD):]
-                    logger.info(f"Получена команда: {START_CMD}")
+                    tail = self.buffer[idx + len(START_CMD):]
+                    logger.info(
+                        f"Команда запуска найдена в буфере: idx={idx}, "
+                        f"cmd={START_CMD.hex()}, tail={tail.hex()}"
+                    )
+                    self.buffer.clear()
                     return START_CMD
         except serial.SerialException as e:
             logger.error(f"Ошибка чтения RS-485: {e}")
@@ -432,6 +436,7 @@ class CameraSystem:
                 command = await self.rs485.listen()
                 
                 if command == START_CMD:
+                    logger.info("Команда запуска подтверждена, начинаю обработку")
                     await self.handle_start_command()
                 
                 # Небольшая задержка для снижения нагрузки на CPU
@@ -450,6 +455,7 @@ class CameraSystem:
         
         try:
             # 1. Записываем видео
+            logger.info(f"Запуск записи на {VIDEO_DURATION_MS} мс")
             video_path = await record_video(VIDEO_DURATION_MS)
             if not video_path:
                 logger.error("Не удалось записать видео")
