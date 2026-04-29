@@ -4,7 +4,7 @@ RS485_Camera.py
 
 Raspberry Pi Zero 2W:
 - Слушает UART (через RS‑485 преобразователь) на скорости 115200 бод.
-- По команде "start" записывает 1‑минутное видео с камеры в H.264.
+- По команде 0x00 0x01 записывает 10‑секундное видео с камеры в H.264.
 
 Требования:
 - Raspberry Pi OS (64‑bit) с поддержкой rpicam.
@@ -51,10 +51,10 @@ UART_PORT = "/dev/serial0"
 UART_BAUDRATE = 115200
 
 # Команда запуска записи видео
-START_COMMAND = b"start"  # ожидаем байтовую последовательность "start"
+START_COMMAND = b"\x00\x01"  # ожидаем байтовую последовательность 0x00 0x01
 
-# Длительность видео в миллисекундах (1 минута = 60000 мс)
-VIDEO_DURATION_MS = 60_000
+# Длительность видео в миллисекундах (10 секунд = 10000 мс)
+VIDEO_DURATION_MS = 10_000
 
 # Папка для сохранения видео
 OUTPUT_DIR = Path("./videos")
@@ -248,11 +248,11 @@ class UartCameraController:
         если команда придет повторно во время записи.
         """
         if not self._recording_lock.acquire(blocking=False):
-            print("Команда 'start' получена, но запись уже идет. Игнорирую.")
+            print("Команда 0x00 0x01 получена, но запись уже идет. Игнорирую.")
             return
 
         try:
-            print("Команда 'start' получена. Начинаю запись видео на 60 секунд.")
+            print("Команда 0x00 0x01 получена. Начинаю запись видео на 10 секунд.")
             try:
                 record_video_h264(VIDEO_DURATION_MS)
             except Exception as exc:  # noqa: BLE001
@@ -264,7 +264,7 @@ class UartCameraController:
         """
         Главный цикл: читает данные из UART и ищет команду START_COMMAND.
 
-        Для простоты ищем последовательность байтов "start" в потоке.
+        Для простоты ищем последовательность байтов 0x00 0x01 в потоке.
         """
         if self.ser is None:
             raise RuntimeError("Порт не открыт. Вызовите open() перед run().")

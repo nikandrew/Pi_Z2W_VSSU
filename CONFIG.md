@@ -11,12 +11,12 @@ UART_BAUDRATE = 115200            # 115200 бод
 RS485_GPIO_PIN = 17                  # GPIO17 для DE и RE (объединены)
 
 # Видео
-VIDEO_DURATION_MS = 60_000           # 1 минута
+VIDEO_DURATION_MS = 10_000           # 10 минута
 VIDEO_OUTPUT_DIR = "./videos"        # Папка для видео
 CHUNK_SIZE_MB = 50                   # Размер части файла
 
 # Команды
-START_CMD = b"start"                 # Команда запуска
+START_CMD = b"\x00\x01"                 # Команда запуска
 SUCCESS_REPLY = b"recording_complete" # Ответ об успехе
 ```
 
@@ -156,5 +156,5 @@ sudo systemctl status camera.service
 На Pi Zero 2W система занимает примерно:
 - CPU: 40-60% (во время записи видео)
 - RAM: ~80 МБ
-- Запись 1 минуты видео: ~15-20 МБ
+- Запись 10 секунд видео: примерно 2-4 МБ
 - Разделение на части: ~30 сек/видео (с ffmpeg)

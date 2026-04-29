@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Ожидание команды "start" по RS485 (последовательный порт).
-При получении "start" — ответ "Test" в тот же RS485.
+Ожидание команды 0x00 0x01 по RS485 (последовательный порт).
+При получении 0x00 0x01 — ответ "Test" в тот же RS485.
 RE и DE на GPIO17.
 Чтение по таймауту (select на Linux часто не срабатывает на serial).
 """
@@ -16,7 +16,7 @@ RE_DE_PIN = 17
 PORT = "/dev/serial0"
 BAUDRATE = 115200
 
-EXPECTED_CMD = b"start"
+EXPECTED_CMD = b"\x00\x01"
 REPLY_MSG = b"Test"
 READ_TIMEOUT = 0.05  # с — опрос порта; при данных они сразу читаются
 

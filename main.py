@@ -2,7 +2,7 @@
 """
 Полная система для Raspberry Pi Zero 2W:
 - Слушает RS-485 на скорости 115200 бод
-- При команде 'start' записывает видео 1 минуту в H.264
+- При команде 0x00 0x01 записывает видео 10 секунд в H.264
 - Разбивает видео на части по 50 МБ
 - Отправляет сообщение об успехе по RS-485
 
@@ -47,11 +47,11 @@ RS485_TX_MODE = True  # HIGH
 RS485_USE_GPIO = os.environ.get("RS485_USE_GPIO", "1").lower() not in ("0", "false", "no", "off")
 
 # Команды
-START_CMD = b"start"
+START_CMD = b"\x00\x01"
 SUCCESS_REPLY = b"recording_complete"
 
 # Видео
-VIDEO_DURATION_MS = 60_000  # 1 минута
+VIDEO_DURATION_MS = 10_000  # 10 секунд
 VIDEO_OUTPUT_DIR = Path("./videos")
 CHUNK_SIZE_MB = 50
 CHUNK_SIZE_BYTES = CHUNK_SIZE_MB * 1024 * 1024
@@ -172,7 +172,12 @@ class RS485Handler:
             if self.ser.in_waiting > 0:
                 data = self.ser.read(self.ser.in_waiting)
                 self.buffer.extend(data)
-                logger.info(f"RS-485 RX: {data!r}")
+                logger.info(f"RS-485 RX: {data!r} hex={data.hex()} buffer={self.buffer.hex()}")
+                if self.buffer.endswith(b"\x01") and START_CMD not in self.buffer:
+                    logger.warning(
+                        "Получен 0x01 без ведущего 0x00. Вероятно, первый байт теряется "
+                        "на USB-RS485 адаптере или при переключении направления."
+                    )
                 
                 # Пытаемся найти команду в буфере
                 if START_CMD in self.buffer:
@@ -432,7 +437,7 @@ class CameraSystem:
             self.shutdown()
     
     async def handle_start_command(self) -> None:
-        """Обработчик команды start."""
+        """Обработчик команды запуска записи."""
         logger.info("Обработка команды START")
         
         try:

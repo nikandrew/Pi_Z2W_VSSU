@@ -26,7 +26,7 @@ UART_BAUDRATE = 115200
 GPIO_PIN = 17
 
 # Команды
-START_CMD = b"start"
+START_CMD = b"\x00\x01"
 SUCCESS_REPLY = b"recording_complete"
 
 
@@ -91,7 +91,7 @@ def test_uart_loopback() -> None:
 def test_uart_send_receive() -> None:
     """Интерактивный тест отправки/приема."""
     print("\n[UART INTERACTIVE TEST]")
-    print("  Отправка команды 'start' и ожидание ответа...")
+    print("  Отправка команды 0x00 0x01 и ожидание ответа...")
     
     try:
         gpio = DigitalOutputDevice(GPIO_PIN)
@@ -126,11 +126,11 @@ def test_uart_send_receive() -> None:
         time.sleep(0.001)
         
         # Чтение ответа
-        print(f"  4. Ожидание ответа (таймаут 2 сек)...")
+        print(f"  4. Ожидание ответа (таймаут 25 сек)...")
         start_time = time.time()
         response = b""
         
-        while time.time() - start_time < 2:
+        while time.time() - start_time < 25:
             if ser.in_waiting > 0:
                 chunk = ser.read(ser.in_waiting)
                 response += chunk

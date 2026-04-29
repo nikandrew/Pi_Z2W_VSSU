@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Простой симулятор хоста для тестирования системы на Pi.
-Отправляет команду 'start' и ждет ответа по RS-485.
+Отправляет команду 0x00 0x01 и ждет ответа по RS-485.
 
 Использование (на другом компьютере):
   python3 host_simulator.py --port /dev/ttyUSB0 --baudrate 115200
@@ -22,6 +22,7 @@ except ImportError:
 
 
 EXPECTED_REPLY = b"recording_complete"
+DEFAULT_COMMAND = b"\x00\x01"
 
 
 def print_ports() -> None:
@@ -40,10 +41,12 @@ def send_command(
     port: str,
     baudrate: int,
     command: bytes,
-    timeout: float = 90,
+    timeout: float = 25,
     expected_reply: bytes = EXPECTED_REPLY,
     open_delay: float = 0.2,
     post_write_delay: float = 0.05,
+    repeat: int = 2,
+    repeat_delay: float = 0.05,
     rts: Optional[bool] = None,
     dtr: Optional[bool] = None,
 ) -> bool:
@@ -80,14 +83,20 @@ def send_command(
         ser.reset_input_buffer()
         ser.reset_output_buffer()
         
-        # Отправка команды
+        # Отправка команды. Повтор помогает USB-RS485 адаптерам, которые теряют первый 0x00
+        # при включении передачи.
         print(f"\n[SEND] Отправка: {command}")
-        bytes_written = ser.write(command)
-        ser.flush()
+        bytes_written = 0
+        for i in range(max(1, repeat)):
+            if i > 0 and repeat_delay > 0:
+                time.sleep(repeat_delay)
+            written = ser.write(command)
+            bytes_written += written
+            ser.flush()
+            print(f"       Кадр {i + 1}: записано {written} байт, hex={command.hex()}")
         if post_write_delay > 0:
             time.sleep(post_write_delay)
-        print(f"       Записано байт в COM-порт: {bytes_written}")
-        print(f"       Hex: {command.hex()}")
+        print(f"       Всего записано байт в COM-порт: {bytes_written}")
         print("       Команда отправлена. Если main.py сработал, ответ придет после записи видео.")
         
         # Ожидание ответа
@@ -157,15 +166,15 @@ def main():
         help="Скорость (по умолчанию 115200)"
     )
     parser.add_argument(
-        "--command",
-        default="start",
-        help="Команда для отправки (по умолчанию 'start')"
+        "--command-hex",
+        default=DEFAULT_COMMAND.hex(),
+        help="Команда для отправки в hex (по умолчанию 0001)"
     )
     parser.add_argument(
         "--timeout",
         type=float,
-        default=90,
-        help="Таймаут ответа в секундах (по умолчанию 90, т.к. main.py пишет видео 60 секунд)"
+        default=25,
+        help="Таймаут ответа в секундах (по умолчанию 25, т.к. main.py пишет видео 10 секунд)"
     )
     parser.add_argument(
         "--expect",
@@ -195,6 +204,18 @@ def main():
         help="Пауза после write/flush перед чтением, сек (по умолчанию 0.05)"
     )
     parser.add_argument(
+        "--repeat",
+        type=int,
+        default=2,
+        help="Сколько раз отправить кадр команды (по умолчанию 2, помогает если теряется первый 0x00)"
+    )
+    parser.add_argument(
+        "--repeat-delay",
+        type=float,
+        default=0.05,
+        help="Пауза между повторами команды, сек (по умолчанию 0.05)"
+    )
+    parser.add_argument(
         "--rts",
         choices=["on", "off"],
         help="Принудительно установить RTS; полезно для некоторых USB-RS485 адаптеров"
@@ -211,7 +232,11 @@ def main():
         print_ports()
         return 0
     
-    command = args.command.encode() if isinstance(args.command, str) else args.command
+    try:
+        command = bytes.fromhex(args.command_hex)
+    except ValueError:
+        print(f"Некорректный hex для --command-hex: {args.command_hex!r}", file=sys.stderr)
+        return 1
     rts = None if args.rts is None else args.rts == "on"
     dtr = None if args.dtr is None else args.dtr == "on"
     
@@ -224,6 +249,7 @@ def main():
     expected_reply = args.expect.encode() if args.expect else b""
     print(f"Таймаут: {args.timeout} сек")
     print(f"Ожидаемый ответ: {expected_reply!r}")
+    print(f"Повторы команды: {args.repeat}, пауза: {args.repeat_delay} сек")
     print(f"RTS: {'не менять' if rts is None else rts}")
     print(f"DTR: {'не менять' if dtr is None else dtr}")
     
@@ -241,6 +267,8 @@ def main():
                     expected_reply,
                     args.open_delay,
                     args.post_write_delay,
+                    args.repeat,
+                    args.repeat_delay,
                     rts,
                     dtr,
                 )
@@ -258,6 +286,8 @@ def main():
             expected_reply,
             args.open_delay,
             args.post_write_delay,
+            args.repeat,
+            args.repeat_delay,
             rts,
             dtr,
         )

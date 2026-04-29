@@ -2,7 +2,7 @@
 """
 RS485_test.py
 
-Raspberry Pi Zero 2W: ожидание сообщения "ST" по RS485 (UART 115200 бод),
+Raspberry Pi Zero 2W: ожидание сообщения 0x00 0x01 по RS485 (UART 115200 бод),
 ответ "Recording_started". RE и DE трансивера объединены на GPIO17.
 Ожидание ввода реализовано через select().
 """
@@ -31,7 +31,7 @@ UART_PORT = "/dev/serial0"
 UART_BAUDRATE = 115200
 RS485_DE_RE_GPIO = 17
 
-EXPECTED_MSG = b"ST"
+EXPECTED_MSG = b"\x00\x01"
 REPLY_MSG = b"Recording_started"
 
 SELECT_TIMEOUT = 1.0  # таймаут select в секундах (для периодической проверки выхода)
@@ -126,7 +126,7 @@ def main() -> int:
                     text = data.decode("utf-8", errors="replace")
                 except Exception:
                     text = str(bytes(data))
-                print(f"Получено не ST. Содержимое: {text!r}")
+                print(f"Получено не 0x00 0x01. Содержимое: {text!r}")
 
     except KeyboardInterrupt:
         print("\nОстановка по Ctrl+C.")
