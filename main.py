@@ -13,6 +13,7 @@
 """
 
 import asyncio
+import binascii
 import datetime
 import logging
 import os
@@ -48,6 +49,7 @@ RS485_USE_GPIO = os.environ.get("RS485_USE_GPIO", "1").lower() not in ("0", "fal
 
 # Команды
 START_CMD = b"\x00\x01"
+CRC_SIZE_BYTES = 4
 SUCCESS_REPLY = b"recording_complete"
 
 # Видео
@@ -69,6 +71,23 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+
+def crc32_iso_hdlc(data: bytes) -> int:
+    """CRC-32/ISO-HDLC: poly 0x04C11DB7, init/xorout 0xffffffff, reflected."""
+    return binascii.crc32(data) & 0xFFFFFFFF
+
+
+def append_crc32_iso_hdlc(data: bytes) -> bytes:
+    return data + crc32_iso_hdlc(data).to_bytes(CRC_SIZE_BYTES, "little")
+
+
+def verify_crc32_iso_hdlc(frame: bytes) -> bool:
+    if len(frame) < CRC_SIZE_BYTES:
+        return False
+    payload = frame[:-CRC_SIZE_BYTES]
+    received_crc = int.from_bytes(frame[-CRC_SIZE_BYTES:], "little")
+    return received_crc == crc32_iso_hdlc(payload)
 
 
 # ==================== GPIO УПРАВЛЕНИЕ ====================
@@ -187,16 +206,37 @@ class RS485Handler:
                         "на USB-RS485 адаптере или при переключении направления."
                     )
                 
-                # Пытаемся найти команду в буфере
-                if START_CMD in self.buffer:
+                # Ищем кадр: 00 01 + CRC-32/ISO-HDLC (4 байта, little-endian)
+                while True:
                     idx = self.buffer.find(START_CMD)
-                    tail = self.buffer[idx + len(START_CMD):]
-                    logger.info(
-                        f"Команда запуска найдена в буфере: idx={idx}, "
-                        f"cmd={START_CMD.hex()}, tail={tail.hex()}"
+                    if idx < 0:
+                        if len(self.buffer) > len(START_CMD) + CRC_SIZE_BYTES:
+                            self.buffer = self.buffer[-(len(START_CMD) + CRC_SIZE_BYTES - 1):]
+                        break
+
+                    frame_len = len(START_CMD) + CRC_SIZE_BYTES
+                    if len(self.buffer) < idx + frame_len:
+                        if idx > 0:
+                            del self.buffer[:idx]
+                        break
+
+                    frame = bytes(self.buffer[idx:idx + frame_len])
+                    tail = self.buffer[idx + frame_len:]
+                    if verify_crc32_iso_hdlc(frame):
+                        logger.info(
+                            f"Команда запуска найдена и CRC корректен: idx={idx}, "
+                            f"frame={frame.hex()}, tail={bytes(tail).hex()}"
+                        )
+                        self.buffer.clear()
+                        return START_CMD
+
+                    received_crc = int.from_bytes(frame[-CRC_SIZE_BYTES:], "little")
+                    expected_crc = crc32_iso_hdlc(frame[:-CRC_SIZE_BYTES])
+                    logger.warning(
+                        f"Команда 00 01 найдена, но CRC неверен: frame={frame.hex()}, "
+                        f"received=0x{received_crc:08x}, expected=0x{expected_crc:08x}"
                     )
-                    self.buffer.clear()
-                    return START_CMD
+                    del self.buffer[:idx + 1]
         except serial.SerialException as e:
             logger.error(f"Ошибка чтения RS-485: {e}")
         

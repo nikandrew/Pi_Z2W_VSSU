@@ -8,6 +8,7 @@
 """
 
 import argparse
+import binascii
 import sys
 import time
 from pathlib import Path
@@ -23,7 +24,15 @@ except ImportError:
 
 EXPECTED_REPLY = b"recording_complete"
 DEFAULT_COMMAND = b"\x00\x01"
-DEFAULT_PREAMBLE = b"\x55"
+
+
+def crc32_iso_hdlc(data: bytes) -> int:
+    """CRC-32/ISO-HDLC: poly 0x04C11DB7, init/xorout 0xffffffff, reflected."""
+    return binascii.crc32(data) & 0xFFFFFFFF
+
+
+def append_crc32_iso_hdlc(data: bytes) -> bytes:
+    return data + crc32_iso_hdlc(data).to_bytes(4, "little")
 
 
 def wait_us(delay_us: float) -> None:
@@ -51,14 +60,11 @@ def send_command(
     port: str,
     baudrate: int,
     command: bytes,
-    timeout: float = 25,
+    timeout: float = 35,
     expected_reply: bytes = EXPECTED_REPLY,
     open_delay: float = 0.2,
     post_write_delay: float = 0.05,
-    repeat: int = 2,
-    repeat_delay: float = 0.05,
     inter_byte_delay_us: float = 50,
-    preamble: bytes = DEFAULT_PREAMBLE,
     rts: Optional[bool] = None,
     dtr: Optional[bool] = None,
 ) -> bool:
@@ -95,24 +101,18 @@ def send_command(
         ser.reset_input_buffer()
         ser.reset_output_buffer()
         
-        # Преамбула и повтор помогают USB-RS485 адаптерам, которые теряют/искажают
-        # первый байт при включении передачи. main.py ищет только command и игнорирует мусор.
-        print(f"\n[SEND] Отправка: {command}")
+        frame = append_crc32_iso_hdlc(command)
+        print(f"\n[SEND] Отправка payload: {command}")
+        print(f"       CRC-32/ISO-HDLC: 0x{crc32_iso_hdlc(command):08x}")
+        print(f"       Кадр: {frame.hex()}")
         bytes_written = 0
-        for i in range(max(1, repeat)):
-            if i > 0 and repeat_delay > 0:
-                time.sleep(repeat_delay)
-            frame = preamble + command
-            written = 0
-            for byte in frame:
-                written += ser.write(bytes([byte]))
-                ser.flush()
-                wait_us(inter_byte_delay_us)
-            bytes_written += written
-            print(f"       Кадр {i + 1}: записано {written} байт, hex={frame.hex()}")
+        for byte in frame:
+            bytes_written += ser.write(bytes([byte]))
+            ser.flush()
+            wait_us(inter_byte_delay_us)
         if post_write_delay > 0:
             time.sleep(post_write_delay)
-        print(f"       Всего записано байт в COM-порт: {bytes_written}")
+        print(f"       Записано байт в COM-порт: {bytes_written}")
         print("       Команда отправлена. Если main.py сработал, ответ придет после записи видео.")
         
         # Ожидание ответа
@@ -189,8 +189,8 @@ def main():
     parser.add_argument(
         "--timeout",
         type=float,
-        default=25,
-        help="Таймаут ответа в секундах (по умолчанию 25, т.к. main.py пишет видео 10 секунд)"
+        default=35,
+        help="Таймаут ответа в секундах (по умолчанию 35)"
     )
     parser.add_argument(
         "--expect",
@@ -220,27 +220,10 @@ def main():
         help="Пауза после write/flush перед чтением, сек (по умолчанию 0.05)"
     )
     parser.add_argument(
-        "--repeat",
-        type=int,
-        default=2,
-        help="Сколько раз отправить кадр команды (по умолчанию 2, помогает если теряется первый 0x00)"
-    )
-    parser.add_argument(
-        "--repeat-delay",
-        type=float,
-        default=0.05,
-        help="Пауза между повторами команды, сек (по умолчанию 0.05)"
-    )
-    parser.add_argument(
         "--inter-byte-delay-us",
         type=float,
         default=50,
         help="Задержка между отправкой байтов, мкс (по умолчанию 50)"
-    )
-    parser.add_argument(
-        "--preamble-hex",
-        default=DEFAULT_PREAMBLE.hex(),
-        help="Преамбула перед командой в hex (по умолчанию 55; пустая строка отключает)"
     )
     parser.add_argument(
         "--rts",
@@ -264,11 +247,6 @@ def main():
     except ValueError:
         print(f"Некорректный hex для --command-hex: {args.command_hex!r}", file=sys.stderr)
         return 1
-    try:
-        preamble = bytes.fromhex(args.preamble_hex)
-    except ValueError:
-        print(f"Некорректный hex для --preamble-hex: {args.preamble_hex!r}", file=sys.stderr)
-        return 1
     rts = None if args.rts is None else args.rts == "on"
     dtr = None if args.dtr is None else args.dtr == "on"
     
@@ -281,8 +259,7 @@ def main():
     expected_reply = args.expect.encode() if args.expect else b""
     print(f"Таймаут: {args.timeout} сек")
     print(f"Ожидаемый ответ: {expected_reply!r}")
-    print(f"Преамбула: {preamble.hex() or '<нет>'}")
-    print(f"Повторы команды: {args.repeat}, пауза: {args.repeat_delay} сек")
+    print(f"CRC-32/ISO-HDLC: little-endian append")
     print(f"Задержка между байтами: {args.inter_byte_delay_us} мкс")
     print(f"RTS: {'не менять' if rts is None else rts}")
     print(f"DTR: {'не менять' if dtr is None else dtr}")
@@ -301,10 +278,7 @@ def main():
                     expected_reply,
                     args.open_delay,
                     args.post_write_delay,
-                    args.repeat,
-                    args.repeat_delay,
                     args.inter_byte_delay_us,
-                    preamble,
                     rts,
                     dtr,
                 )
@@ -322,10 +296,7 @@ def main():
             expected_reply,
             args.open_delay,
             args.post_write_delay,
-            args.repeat,
-            args.repeat_delay,
             args.inter_byte_delay_us,
-            preamble,
             rts,
             dtr,
         )

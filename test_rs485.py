@@ -5,6 +5,7 @@
 """
 
 import asyncio
+import binascii
 import sys
 import time
 
@@ -28,6 +29,16 @@ GPIO_PIN = 17
 # Команды
 START_CMD = b"\x00\x01"
 SUCCESS_REPLY = b"recording_complete"
+CRC_SIZE_BYTES = 4
+
+
+def crc32_iso_hdlc(data: bytes) -> int:
+    """CRC-32/ISO-HDLC: poly 0x04C11DB7, init/xorout 0xffffffff, reflected."""
+    return binascii.crc32(data) & 0xFFFFFFFF
+
+
+def append_crc32_iso_hdlc(data: bytes) -> bytes:
+    return data + crc32_iso_hdlc(data).to_bytes(CRC_SIZE_BYTES, "little")
 
 
 def test_gpio() -> None:
@@ -120,8 +131,9 @@ def test_uart_send_receive() -> None:
         time.sleep(0.001)
         
         # Отправка
-        print(f"  2. Отправка: {START_CMD}")
-        ser.write(START_CMD)
+        frame = append_crc32_iso_hdlc(START_CMD)
+        print(f"  2. Отправка: {frame} hex={frame.hex()}")
+        ser.write(frame)
         ser.flush()
         
         time.sleep(0.1)
@@ -132,11 +144,11 @@ def test_uart_send_receive() -> None:
         time.sleep(0.001)
         
         # Чтение ответа
-        print(f"  4. Ожидание ответа (таймаут 25 сек)...")
+        print(f"  4. Ожидание ответа (таймаут 35 сек)...")
         start_time = time.time()
         response = b""
         
-        while time.time() - start_time < 25:
+        while time.time() - start_time < 35:
             if ser.in_waiting > 0:
                 chunk = ser.read(ser.in_waiting)
                 response += chunk

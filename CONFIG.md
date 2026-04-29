@@ -16,7 +16,8 @@ VIDEO_OUTPUT_DIR = "./videos"        # Папка для видео
 CHUNK_SIZE_MB = 50                   # Размер части файла
 
 # Команды
-START_CMD = b"\x00\x01"                 # Команда запуска
+START_CMD = b"\x00\x01"              # Payload команды запуска
+CRC_SIZE_BYTES = 4                   # CRC-32/ISO-HDLC, little-endian
 SUCCESS_REPLY = b"recording_complete" # Ответ об успехе
 ```
 
