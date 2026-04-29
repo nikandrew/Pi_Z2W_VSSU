@@ -66,7 +66,10 @@ def test_uart_loopback() -> None:
             bytesize=serial.EIGHTBITS,
             parity=serial.PARITY_NONE,
             stopbits=serial.STOPBITS_ONE,
-            timeout=1
+            timeout=1,
+            xonxoff=False,
+            rtscts=False,
+            dsrdtr=False,
         )
         
         test_data = b"TEST_LOOPBACK"
@@ -101,7 +104,10 @@ def test_uart_send_receive() -> None:
             bytesize=serial.EIGHTBITS,
             parity=serial.PARITY_NONE,
             stopbits=serial.STOPBITS_ONE,
-            timeout=0.5
+            timeout=0.5,
+            xonxoff=False,
+            rtscts=False,
+            dsrdtr=False,
         )
         
         # Режим приема

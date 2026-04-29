@@ -220,7 +220,12 @@ class UartCameraController:
                 parity=serial.PARITY_NONE,
                 stopbits=serial.STOPBITS_ONE,
                 timeout=0.1,  # небольшой таймаут, чтобы можно было проверять stop_flag
+                xonxoff=False,
+                rtscts=False,
+                dsrdtr=False,
             )
+            self.ser.reset_input_buffer()
+            self.ser.reset_output_buffer()
         except serial.SerialException as exc:  # type: ignore[attr-defined]
             print(f"Не удалось открыть порт {self.port_name}: {exc}", file=sys.stderr)
             sys.exit(1)

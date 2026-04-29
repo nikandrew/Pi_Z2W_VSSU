@@ -78,7 +78,12 @@ def main() -> int:
             parity=serial.PARITY_NONE,
             stopbits=serial.STOPBITS_ONE,
             timeout=0,
+            xonxoff=False,
+            rtscts=False,
+            dsrdtr=False,
         )
+        ser.reset_input_buffer()
+        ser.reset_output_buffer()
     except serial.SerialException as e:
         print(f"Ошибка открытия порта {UART_PORT}: {e}", file=sys.stderr)
         rs485_cleanup()

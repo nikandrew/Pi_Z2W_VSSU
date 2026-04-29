@@ -145,14 +145,22 @@ class RS485Handler:
     async def connect(self) -> bool:
         """Открывает последовательный порт."""
         try:
-            self.ser = serial.Serial(
-                port=self.port,
-                baudrate=self.baudrate,
-                bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE,
-                timeout=0.1
-            )
+            serial_kwargs = {
+                "port": self.port,
+                "baudrate": self.baudrate,
+                "bytesize": serial.EIGHTBITS,
+                "parity": serial.PARITY_NONE,
+                "stopbits": serial.STOPBITS_ONE,
+                "timeout": 0.1,
+                "xonxoff": False,
+                "rtscts": False,
+                "dsrdtr": False,
+            }
+            if sys.platform.startswith("linux"):
+                serial_kwargs["exclusive"] = True
+            self.ser = serial.Serial(**serial_kwargs)
+            self.ser.reset_input_buffer()
+            self.ser.reset_output_buffer()
             logger.info(f"Подключено к {self.port} ({self.baudrate} бод)")
             return True
         except serial.SerialException as e:

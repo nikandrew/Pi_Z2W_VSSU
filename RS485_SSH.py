@@ -36,6 +36,9 @@ def open_serial():
         parity=serial.PARITY_NONE,
         stopbits=serial.STOPBITS_ONE,
         timeout=READ_TIMEOUT,
+        xonxoff=False,
+        rtscts=False,
+        dsrdtr=False,
     )
     try:
         return serial.Serial(**kwargs, exclusive=True)
