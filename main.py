@@ -57,10 +57,6 @@ FILE_FRAME_META = 1
 FILE_FRAME_CHUNK = 2
 FILE_FRAME_END = 3
 FILE_TRANSFER_CHUNK_SIZE = 1024
-FILE_ACK_MAGIC = b"VACK"
-FILE_ACK_SIZE = len(FILE_ACK_MAGIC) + 4 + 1 + CRC_SIZE_BYTES + CRC_SIZE_BYTES
-FILE_ACK_TIMEOUT_SECONDS = 1.0
-FILE_FRAME_MAX_RETRIES = 5
 
 # Видео
 VIDEO_DURATION_MS = 10_000  # 10 секунд
@@ -100,24 +96,14 @@ def verify_crc32_iso_hdlc(frame: bytes) -> bool:
     return received_crc == crc32_iso_hdlc(payload)
 
 
-def build_file_frame(seq: int, frame_type: int, payload: bytes) -> tuple[bytes, int]:
-    body = (
-        seq.to_bytes(4, "little")
+def make_file_frame(frame_type: int, payload: bytes) -> bytes:
+    return (
+        FILE_FRAME_MAGIC
         + bytes([frame_type])
         + len(payload).to_bytes(4, "little")
         + payload
+        + crc32_iso_hdlc(payload).to_bytes(CRC_SIZE_BYTES, "little")
     )
-    frame_crc = crc32_iso_hdlc(body)
-    return FILE_FRAME_MAGIC + body + frame_crc.to_bytes(CRC_SIZE_BYTES, "little"), frame_crc
-
-
-def build_file_ack(seq: int, frame_type: int, frame_crc: int) -> bytes:
-    body = (
-        seq.to_bytes(4, "little")
-        + bytes([frame_type])
-        + frame_crc.to_bytes(CRC_SIZE_BYTES, "little")
-    )
-    return FILE_ACK_MAGIC + body + crc32_iso_hdlc(body).to_bytes(CRC_SIZE_BYTES, "little")
 
 
 def file_crc32_iso_hdlc(path: Path) -> int:
@@ -316,76 +302,6 @@ class RS485Handler:
         """Отправляет ответное сообщение по RS-485."""
         return await self.send_bytes(message)
 
-    async def wait_file_ack(self, seq: int, frame_type: int, frame_crc: int) -> bool:
-        """Ждет ACK на отправленный файловый фрейм."""
-        if not self.ser:
-            return False
-
-        expected_ack = build_file_ack(seq, frame_type, frame_crc)
-        deadline = time.monotonic() + FILE_ACK_TIMEOUT_SECONDS
-        ack_buffer = bytearray()
-
-        while time.monotonic() < deadline:
-            try:
-                if self.ser.in_waiting > 0:
-                    ack_buffer.extend(self.ser.read(self.ser.in_waiting))
-
-                    while True:
-                        idx = ack_buffer.find(FILE_ACK_MAGIC)
-                        if idx < 0:
-                            if len(ack_buffer) > len(FILE_ACK_MAGIC):
-                                del ack_buffer[:-len(FILE_ACK_MAGIC) + 1]
-                            break
-                        if idx > 0:
-                            del ack_buffer[:idx]
-                        if len(ack_buffer) < FILE_ACK_SIZE:
-                            break
-
-                        candidate = bytes(ack_buffer[:FILE_ACK_SIZE])
-                        del ack_buffer[:FILE_ACK_SIZE]
-                        body = candidate[len(FILE_ACK_MAGIC):-CRC_SIZE_BYTES]
-                        received_crc = int.from_bytes(candidate[-CRC_SIZE_BYTES:], "little")
-                        if received_crc != crc32_iso_hdlc(body):
-                            logger.warning(f"Получен ACK с неверным CRC: {candidate.hex()}")
-                            continue
-                        if candidate == expected_ack:
-                            logger.debug(f"ACK получен: seq={seq}, type={frame_type}")
-                            return True
-                        logger.warning(
-                            f"Получен ACK не для текущего фрейма: {candidate.hex()}, "
-                            f"ожидался {expected_ack.hex()}"
-                        )
-            except serial.SerialException as e:
-                logger.error(f"Ошибка ожидания ACK RS-485: {e}")
-                return False
-
-            await asyncio.sleep(0.001)
-
-        return False
-
-    async def send_file_frame_with_ack(self, seq: int, frame_type: int, payload: bytes) -> bool:
-        """Отправляет файловый фрейм и повторяет его, пока не получит ACK."""
-        frame, frame_crc = build_file_frame(seq, frame_type, payload)
-
-        for attempt in range(1, FILE_FRAME_MAX_RETRIES + 1):
-            if attempt > 1:
-                logger.warning(
-                    f"ACK не получен, фрейм будет переотправлен заново: "
-                    f"seq={seq}, type={frame_type}, попытка {attempt}/{FILE_FRAME_MAX_RETRIES}"
-                )
-
-            if not await self.send_bytes(frame, log_payload=False):
-                return False
-
-            if await self.wait_file_ack(seq, frame_type, frame_crc):
-                return True
-
-        logger.error(
-            f"Не удалось получить ACK после {FILE_FRAME_MAX_RETRIES} попыток: "
-            f"seq={seq}, type={frame_type}"
-        )
-        return False
-
     async def send_file(self, file_path: Path) -> bool:
         """Отправляет записанный файл фреймами VSSU с CRC-32/ISO-HDLC."""
         if not file_path.exists():
@@ -406,8 +322,7 @@ class RS485Handler:
             f"{file_size} bytes, crc=0x{file_crc:08x}"
         )
 
-        seq = 1
-        if not await self.send_file_frame_with_ack(seq, FILE_FRAME_META, metadata_payload):
+        if not await self.send_bytes(make_file_frame(FILE_FRAME_META, metadata_payload), log_payload=False):
             return False
 
         sent = 0
@@ -418,8 +333,7 @@ class RS485Handler:
                 if not chunk:
                     break
 
-                seq += 1
-                if not await self.send_file_frame_with_ack(seq, FILE_FRAME_CHUNK, chunk):
+                if not await self.send_bytes(make_file_frame(FILE_FRAME_CHUNK, chunk), log_payload=False):
                     return False
 
                 sent += len(chunk)
@@ -429,8 +343,7 @@ class RS485Handler:
                     logger.info(f"Передача файла: {sent}/{file_size} bytes ({percent:.1f}%)")
                 await asyncio.sleep(0.003)
 
-        seq += 1
-        if not await self.send_file_frame_with_ack(seq, FILE_FRAME_END, b""):
+        if not await self.send_bytes(make_file_frame(FILE_FRAME_END, b""), log_payload=False):
             return False
 
         logger.info(f"Файл отправлен по RS-485: {file_path.name}")
