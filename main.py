@@ -60,6 +60,7 @@ FILE_TRANSFER_CHUNK_SIZE = 1024
 
 # Видео
 VIDEO_DURATION_MS = 10_000  # 10 секунд
+VIDEO_FRAMERATE = 30
 VIDEO_OUTPUT_DIR = Path("./videos")
 CHUNK_SIZE_MB = 50
 CHUNK_SIZE_BYTES = CHUNK_SIZE_MB * 1024 * 1024
@@ -376,6 +377,70 @@ def build_output_filename() -> Path:
     return VIDEO_OUTPUT_DIR / f"video_{timestamp}.h264"
 
 
+def build_timestamped_filename(video_path: Path) -> Path:
+    """Генерирует имя файла видео с наложенным таймкодом."""
+    return video_path.with_name(f"{video_path.stem}_timestamped{video_path.suffix}")
+
+
+async def add_video_timestamp(video_path: Path) -> Optional[Path]:
+    """Добавляет в кадр секунды и миллисекунды от начала съемки."""
+    timestamped_path = build_timestamped_filename(video_path)
+    drawtext_filter = (
+        "drawtext="
+        "fontcolor=white:"
+        "fontsize=36:"
+        "box=1:"
+        "boxcolor=black@0.55:"
+        "boxborderw=8:"
+        "x=20:"
+        "y=20:"
+        "text='%{pts\\:hms}'"
+    )
+
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-r", str(VIDEO_FRAMERATE),
+        "-i", str(video_path),
+        "-vf", drawtext_filter,
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-pix_fmt", "yuv420p",
+        "-f", "h264",
+        str(timestamped_path),
+    ]
+
+    logger.info(f"Добавление таймкода в видео: {timestamped_path}")
+    logger.debug(f"Команда ffmpeg: {' '.join(cmd)}")
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await proc.communicate()
+
+        if proc.returncode != 0:
+            logger.error(f"ffmpeg не смог добавить таймкод (код {proc.returncode})")
+            logger.error(f"STDERR: {stderr.decode(errors='replace')}")
+            return None
+
+        if not timestamped_path.exists() or timestamped_path.stat().st_size == 0:
+            logger.error(f"Файл с таймкодом не создан: {timestamped_path}")
+            return None
+
+        logger.info(f"Видео с таймкодом создано: {timestamped_path}")
+        return timestamped_path
+
+    except FileNotFoundError:
+        logger.error("ffmpeg не найден, невозможно добавить секунды и миллисекунды в видео")
+        return None
+    except Exception as e:
+        logger.error(f"Ошибка при добавлении таймкода в видео: {e}")
+        return None
+
+
 async def record_video(duration_ms: int) -> Optional[Path]:
     """
     Записывает видео с камеры с помощью rpicam-vid.
@@ -389,6 +454,7 @@ async def record_video(duration_ms: int) -> Optional[Path]:
         "-t", str(duration_ms),
         "-o", str(output_path),
         "--codec", "h264",
+        "--framerate", str(VIDEO_FRAMERATE),
         "--inline"
     ]
     
@@ -414,7 +480,11 @@ async def record_video(duration_ms: int) -> Optional[Path]:
         if output_path.exists():
             file_size_mb = output_path.stat().st_size / (1024 * 1024)
             logger.info(f"Видео записано: {output_path} ({file_size_mb:.1f} МБ)")
-            return output_path
+            timestamped_path = await add_video_timestamp(output_path)
+            if not timestamped_path:
+                logger.error("Видео записано, но таймкод добавить не удалось")
+                return None
+            return timestamped_path
         else:
             logger.error(f"Файл видео не создан: {output_path}")
             return None
