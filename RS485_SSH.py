@@ -14,7 +14,7 @@ import serial
 
 RE_DE_PIN = 17
 PORT = "/dev/serial0"
-BAUDRATE = 2000000
+BAUDRATE = 1500000
 
 EXPECTED_CMD = b"\x00\x01"
 REPLY_MSG = b"Test"
@@ -82,7 +82,7 @@ def main() -> int:
     ser.reset_input_buffer()  # выбросить старый мусор, чтобы не было "символа из середины"
 
     print(f"Порт: {PORT}, {BAUDRATE} бод. Ожидание команды {EXPECTED_CMD!r} по RS485.")
-    print("Если данных нет — проверьте: 1) скорость передатчика = 2000000 бод  2) порт (ttyAMA0/serial0).")
+    print("Если данных нет — проверьте: 1) скорость передатчика = 1500000 бод  2) порт (ttyAMA0/serial0).")
     if DEBUG_HEX:
         print("DEBUG: вывод сырых байт (hex) включён.")
     print("Выход: Ctrl+C")

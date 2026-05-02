@@ -23,7 +23,7 @@ except ImportError:
 
 
 UART_PORT = "/dev/serial0"
-UART_BAUDRATE = 2000000
+UART_BAUDRATE = 1500000
 GPIO_PIN = 17
 
 # Команды
@@ -144,11 +144,11 @@ def test_uart_send_receive() -> None:
         time.sleep(0.001)
         
         # Чтение ответа
-        print(f"  4. Ожидание ответа (таймаут 35 сек)...")
+        print(f"  4. Ожидание ответа (таймаут 60 сек)...")
         start_time = time.time()
         response = b""
         
-        while time.time() - start_time < 35:
+        while time.time() - start_time < 60:
             if ser.in_waiting > 0:
                 chunk = ser.read(ser.in_waiting)
                 response += chunk

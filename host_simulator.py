@@ -29,10 +29,11 @@ except ImportError:
     raise
 
 
-BAUDRATE = 2000000
+BAUDRATE = 1500000
+DEFAULT_PORT = "COM5"
 COMMAND = b"\x00\x01"
 EXPECTED_REPLY = b"recording_complete"
-TIMEOUT_SECONDS = 35
+TIMEOUT_SECONDS = 60
 INTER_BYTE_DELAY_US = 50
 
 FILE_FRAME_MAGIC = b"VSSU"
@@ -91,7 +92,7 @@ class HostSimulatorApp:
         self.deadline: Optional[float] = None
         self.log_queue: queue.Queue[str] = queue.Queue()
 
-        self.port_var = tk.StringVar()
+        self.port_var = tk.StringVar(value=DEFAULT_PORT)
         self.baudrate_var = tk.StringVar(value=str(BAUDRATE))
         self.status_var = tk.StringVar(value="No command")
         self.timer_var = tk.StringVar(value=str(TIMEOUT_SECONDS))
@@ -177,12 +178,14 @@ class HostSimulatorApp:
     def refresh_ports(self) -> None:
         ports = list(list_ports.comports())
         values = [port.device for port in ports]
+        if DEFAULT_PORT not in values:
+            values.insert(0, DEFAULT_PORT)
         self.port_combo["values"] = values
 
         if values and self.port_var.get() not in values:
-            self.port_var.set(values[0])
+            self.port_var.set(DEFAULT_PORT)
         elif not values:
-            self.port_var.set("")
+            self.port_var.set(DEFAULT_PORT)
 
         self.log("Available COM/serial ports:")
         if ports:
